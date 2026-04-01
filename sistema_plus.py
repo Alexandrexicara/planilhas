@@ -24,7 +24,7 @@ def inicializar_banco_plus():
     cursor.execute("PRAGMA cache_size=25000")      # Cache médio
     cursor.execute("PRAGMA temp_store=FILE")       # Temp em arquivo
     
-    # Tabela principal com índices otimizados
+    # Tabela principal com TODAS as 39 colunas e índices otimizados
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS produtos_plus(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,6 +35,36 @@ def inicializar_banco_plus():
         peso TEXT,
         valor TEXT,
         ncm TEXT COLLATE NOCASE,
+        doc TEXT,
+        rev TEXT,
+        code TEXT,
+        quantity TEXT,
+        um TEXT,
+        ccy TEXT,
+        total_amount TEXT,
+        marca TEXT,
+        inner_qty TEXT,
+        master_qty TEXT,
+        total_ctns TEXT,
+        gross_weight TEXT,
+        net_weight_pc TEXT,
+        gross_weight_pc TEXT,
+        net_weight_ctn TEXT,
+        gross_weight_ctn TEXT,
+        factory TEXT,
+        address TEXT,
+        telephone TEXT,
+        ean13 TEXT,
+        dun14_inner TEXT,
+        dun14_master TEXT,
+        length TEXT,
+        width TEXT,
+        height TEXT,
+        cbm TEXT,
+        prc_kg TEXT,
+        li TEXT,
+        obs TEXT,
+        status TEXT,
         data_importacao TEXT,
         hash_dados TEXT  -- Para detectar duplicatas
     )
@@ -100,7 +130,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
                 
-            # Extrair dados
+            # Extrair TODAS as colunas
             dados = {}
             for i, cell in enumerate(row):
                 if i < len(cabecalhos):
@@ -110,7 +140,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                             dados[padrao] = str(cell).strip() if cell else ''
                             break
             
-            # Criar hash para detectar duplicatas
+            # Criar hash para detectar duplicatas (usando codigo e descricao)
             hash_dados = hashlib.md5(
                 f"{cliente}_{dados.get('codigo','')}_{dados.get('descricao','')}".encode()
             ).hexdigest()
@@ -122,6 +152,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                     total_duplicatas += 1
                     continue
             
+            # Adicionar TODAS as 39 colunas no batch
             dados_batch.append((
                 cliente,
                 os.path.basename(caminho_arquivo),
@@ -130,16 +161,51 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 dados.get('peso', ''),
                 dados.get('valor', ''),
                 dados.get('ncm', ''),
+                dados.get('doc', ''),
+                dados.get('rev', ''),
+                dados.get('code', ''),
+                dados.get('quantity', ''),
+                dados.get('um', ''),
+                dados.get('ccy', ''),
+                dados.get('total_amount', ''),
+                dados.get('marca', ''),
+                dados.get('inner_qty', ''),
+                dados.get('master_qty', ''),
+                dados.get('total_ctns', ''),
+                dados.get('gross_weight', ''),
+                dados.get('net_weight_pc', ''),
+                dados.get('gross_weight_pc', ''),
+                dados.get('net_weight_ctn', ''),
+                dados.get('gross_weight_ctn', ''),
+                dados.get('factory', ''),
+                dados.get('address', ''),
+                dados.get('telephone', ''),
+                dados.get('ean13', ''),
+                dados.get('dun14_inner', ''),
+                dados.get('dun14_master', ''),
+                dados.get('length', ''),
+                dados.get('width', ''),
+                dados.get('height', ''),
+                dados.get('cbm', ''),
+                dados.get('prc_kg', ''),
+                dados.get('li', ''),
+                dados.get('obs', ''),
+                dados.get('status', ''),
                 data_atual,
                 hash_dados
             ))
             
-            # Insert em batch
+            # Insert em batch com TODAS as 39 colunas
             if len(dados_batch) >= batch_size:
                 cursor_plus.executemany("""
                     INSERT INTO produtos_plus
-                    (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, data_importacao, hash_dados)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                     quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
+                     total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
+                     net_weight_ctn, gross_weight_ctn, factory, address, telephone,
+                     ean13, dun14_inner, dun14_master, length, width, height, cbm,
+                     prc_kg, li, obs, status, data_importacao, hash_dados)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, dados_batch)
                 conn_plus.commit()
                 total_importados += len(dados_batch)
@@ -148,12 +214,17 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 if progress_callback and total_importados % 10000 == 0:
                     progress_callback(f"Importados: {total_importados:,}")
         
-        # Insert final
+        # Insert final com TODAS as 39 colunas
         if dados_batch:
             cursor_plus.executemany("""
                 INSERT INTO produtos_plus
-                (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, data_importacao, hash_dados)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                 quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
+                 total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
+                 net_weight_ctn, gross_weight_ctn, factory, address, telephone,
+                 ean13, dun14_inner, dun14_master, length, width, height, cbm,
+                 prc_kg, li, obs, status, data_importacao, hash_dados)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, dados_batch)
             conn_plus.commit()
             total_importados += len(dados_batch)
@@ -170,7 +241,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         return 0, 0
 
 def detectar_colunas_excel_plus(cabecalhos):
-    """Detecção de colunas melhorada"""
+    """Detecção de colunas melhorada para TODAS as 39 colunas"""
     colunas_detectadas = {}
     
     mapeamento_expandido = {
@@ -178,7 +249,37 @@ def detectar_colunas_excel_plus(cabecalhos):
         'descricao': ['descricao', 'descrição', 'produto', 'item_desc', 'name', 'descrição do produto', 'titulo', 'nome'],
         'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
         'valor': ['valor', 'preco', 'preço', 'price', 'unitario', 'unitário', 'custo', 'valor_unit', 'preco_unit'],
-        'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh']
+        'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh'],
+        'doc': ['doc', 'documento'],
+        'rev': ['rev', 'revisao', 'revisão'],
+        'code': ['code', 'codigo_interno'],
+        'quantity': ['quantity', 'quantidade', 'qtd'],
+        'um': ['um', 'unidade', 'un'],
+        'ccy': ['ccy', 'moeda', 'currency'],
+        'total_amount': ['total amount', 'valor_total', 'total'],
+        'marca': ['marca', 'brand', 'fabricante'],
+        'inner_qty': ['inner qty', 'quantidade_interna', 'qtd_interna'],
+        'master_qty': ['master qty', 'quantidade_master', 'qtd_master'],
+        'total_ctns': ['total ctns', 'caixas', 'cartons'],
+        'gross_weight': ['gross weight', 'peso_bruto'],
+        'net_weight_pc': ['net weight pc', 'peso_liquido_unit'],
+        'gross_weight_pc': ['gross weight pc', 'peso_bruto_unit'],
+        'net_weight_ctn': ['net weight ctn', 'peso_liquido_cx'],
+        'gross_weight_ctn': ['gross weight ctn', 'peso_bruto_cx'],
+        'factory': ['factory', 'fabrica', 'fábrica'],
+        'address': ['address', 'endereco', 'endereço'],
+        'telephone': ['telephone', 'telefone', 'tel', 'phone'],
+        'ean13': ['ean13', 'ean', 'barcode'],
+        'dun14_inner': ['dun-14 inner', 'dun14_interno', 'dun_inner'],
+        'dun14_master': ['dun-14 master', 'dun14_master'],
+        'length': ['length', 'comprimento'],
+        'width': ['width', 'largura'],
+        'height': ['height', 'altura'],
+        'cbm': ['cbm', 'metro_cubico'],
+        'prc_kg': ['prc/kg', 'preco_kg'],
+        'li': ['li', 'licenca', 'licença'],
+        'obs': ['obs', 'observacoes', 'observações', 'notas'],
+        'status': ['status', 'situacao', 'situação']
     }
     
     for col_padrao, alternativas in mapeamento_expandido.items():
@@ -190,9 +291,14 @@ def detectar_colunas_excel_plus(cabecalhos):
     return colunas_detectadas
 
 def buscar_produtos_plus(termo, cliente_filtro=None, limit=10000):
-    """Busca otimizada com limite maior"""
+    """Busca otimizada com TODAS as 39 colunas"""
     query = """
-        SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm
+        SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm,
+               doc, rev, code, quantity, um, ccy, total_amount, marca,
+               inner_qty, master_qty, total_ctns, gross_weight, net_weight_pc,
+               gross_weight_pc, net_weight_ctn, gross_weight_ctn, factory,
+               address, telephone, ean13, dun14_inner, dun14_master,
+               length, width, height, cbm, prc_kg, li, obs, status
         FROM produtos_plus
         WHERE 1=1
     """
@@ -296,8 +402,19 @@ class SistemaPlanilhasPlus:
             logo_label.pack(side='left', padx=(20, 15))
         
         # Título ao lado do logo
-        titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
+        titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com PLUS", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
         titulo_label.pack(side='left', padx=(0, 20))
+        
+        # Frame de navegação no canto direito
+        frame_navegacao = tk.Frame(frame_logo_titulo, bg='#2c3e50')
+        frame_navegacao.pack(side='right', padx=(20, 0))
+        
+        # Botão para voltar ao Sistema Original
+        btn_voltar_original = tk.Button(frame_navegacao, text="📊 Sistema Original", 
+                                       command=self.voltar_sistema_original,
+                                       bg='#3498db', fg='white', font=('Arial', 10, 'bold'),
+                                       relief='raised', bd=2, cursor='hand2')
+        btn_voltar_original.pack(pady=2)
         
         # Estatísticas em linha separada (linha inferior)
         frame_stats_container = tk.Frame(frame_stats_plus, bg='#2c3e50')
@@ -368,7 +485,7 @@ class SistemaPlanilhasPlus:
         frame_tabela = tk.Frame(frame_resultados)
         frame_tabela.pack(fill='both', expand=True, padx=5, pady=5)
         
-        self.colunas_plus = ('Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM')
+        self.colunas_plus = ('Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS')
         self.tabela_plus = ttk.Treeview(frame_tabela, columns=self.colunas_plus, show='headings', height=20)
         
         for col in self.colunas_plus:
@@ -497,7 +614,7 @@ class SistemaPlanilhasPlus:
             messagebox.showerror("Erro", f"Erro: {str(e)}")
     
     def exportar_excel_plus(self):
-        """Exporta resultados PLUS para Excel"""
+        """Exporta resultados PLUS para Excel/CSV com TODAS as colunas"""
         resultados = []
         for item in self.tabela_plus.get_children():
             resultados.append(self.tabela_plus.item(item)['values'])
@@ -509,12 +626,15 @@ class SistemaPlanilhasPlus:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         arquivo = f"resultados_plus_{timestamp}.csv"
         
+        # Exportar com TODAS as 39 colunas
+        colunas_completas = ['Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
+        
         with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
-            writer.writerow(self.colunas_plus)
+            writer.writerow(colunas_completas)
             writer.writerows(resultados)
         
-        messagebox.showinfo("Exportado", f"Exportado para {arquivo}")
+        messagebox.showinfo("Exportado", f"Exportado para {arquivo}\n\nTodas as 39 colunas foram exportadas!")
     
     def exportar_csv_plus(self):
         """Exporta resultados PLUS para CSV (mesma função do Excel)"""
@@ -552,6 +672,24 @@ class SistemaPlanilhasPlus:
     def atualizar_progresso_plus(self, mensagem):
         self.status_bar_plus.config(text=mensagem)
         self.janela.update()
+    
+    def voltar_sistema_original(self):
+        """Volta para o Sistema Original"""
+        if messagebox.askyesno("Voltar para Sistema Original", 
+                              "Deseja fechar o Sistema PLUS e abrir o Sistema Original?"):
+            try:
+                import subprocess
+                import sys
+                
+                # Fecha o sistema atual
+                self.janela.destroy()
+                
+                # Executa o sistema original
+                subprocess.Popen([sys.executable, "sistema.py"])
+                
+            except Exception as e:
+                messagebox.showerror("Erro", 
+                    "Não foi possível abrir o Sistema Original. Verifique se o arquivo 'sistema.py' existe na pasta.")
     
     def executar(self):
         """Inicia a interface PLUS"""

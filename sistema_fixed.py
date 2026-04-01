@@ -9,497 +9,329 @@ import csv
 from PIL import Image, ImageTk
 
 # ==============================
-# BANCO DE DADOS
+# CONFIGURAÇÃO DO BANCO DE DADOS
 # ==============================
 
-# Variáveis globais para conexão thread-safe
-conn_local = threading.local()
-cursor_local = threading.local()
+# Nome do arquivo do banco de dados
+NOME_BANCO = 'banco.db'
 
-def get_connection():
-    """Obtém conexão SQLite thread-safe"""
-    if not hasattr(conn_local, 'conn'):
-        conn_local.conn = sqlite3.connect("banco.db", check_same_thread=False)
-        conn_local.conn.execute("PRAGMA journal_mode=DELETE")
-        conn_local.conn.execute("PRAGMA synchronous=FULL")
-        conn_local.conn.execute("PRAGMA cache_size=5000")
-        conn_local.conn.execute("PRAGMA temp_store=FILE")
-        
-        criar_banco()
-    
-    return conn_local.conn
+# Conexão com o banco de dados
+conn = sqlite3.connect(NOME_BANCO, check_same_thread=False)
+cursor = conn.cursor()
 
-def criar_banco():
-    """Cria o banco de dados SQLite com todas as colunas"""
-    cursor = get_cursor()
-    
-    # Apagar tabela antiga se existir
-    cursor.execute("DROP TABLE IF EXISTS produtos")
-    cursor.execute("DROP TABLE IF EXISTS importacoes")
-    
-    cursor.execute("""
-        CREATE TABLE produtos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente TEXT NOT NULL,
-            arquivo_origem TEXT NOT NULL,
-            codigo TEXT,
-            descricao TEXT,
-            peso TEXT,
-            valor TEXT,
-            ncm TEXT,
-            doc TEXT,
-            rev TEXT,
-            code TEXT,
-            quantity TEXT,
-            um TEXT,
-            ccy TEXT,
-            total_amount TEXT,
-            marca TEXT,
-            inner_qty TEXT,
-            master_qty TEXT,
-            total_ctns TEXT,
-            gross_weight TEXT,
-            net_weight_pc TEXT,
-            gross_weight_pc TEXT,
-            net_weight_ctn TEXT,
-            gross_weight_ctn TEXT,
-            factory TEXT,
-            address TEXT,
-            telephone TEXT,
-            ean13 TEXT,
-            dun14_inner TEXT,
-            dun14_master TEXT,
-            length TEXT,
-            width TEXT,
-            height TEXT,
-            cbm TEXT,
-            prc_kg TEXT,
-            li TEXT,
-            obs TEXT,
-            status TEXT,
-            data_importacao TEXT NOT NULL
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE importacoes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente TEXT NOT NULL,
-            arquivo TEXT NOT NULL,
-            data_importacao TEXT NOT NULL,
-            total_registros INTEGER NOT NULL
-        )
-    """)
-    
-    get_connection().commit()
+# Criar tabela de produtos se não existir
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS produtos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cliente TEXT NOT NULL,
+        arquivo_origem TEXT NOT NULL,
+        codigo TEXT,
+        descricao TEXT,
+        peso TEXT,
+        valor TEXT,
+        ncm TEXT,
+        doc TEXT,
+        rev TEXT,
+        code TEXT,
+        quantity TEXT,
+        um TEXT,
+        ccy TEXT,
+        total_amount TEXT,
+        marca TEXT,
+        inner_qty TEXT,
+        master_qty TEXT,
+        total_ctns TEXT,
+        gross_weight TEXT,
+        net_weight_pc TEXT,
+        gross_weight_pc TEXT,
+        net_weight_ctn TEXT,
+        gross_weight_ctn TEXT,
+        factory TEXT,
+        address TEXT,
+        telephone TEXT,
+        ean13 TEXT,
+        dun14_inner TEXT,
+        dun14_master TEXT,
+        length TEXT,
+        width TEXT,
+        height TEXT,
+        cbm TEXT,
+        prc_kg TEXT,
+        li TEXT,
+        obs TEXT,
+        status TEXT,
+        data_importacao DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+''')
 
-def get_cursor():
-    """Obtém cursor thread-safe"""
-    if not hasattr(cursor_local, 'cursor'):
-        cursor_local.cursor = get_connection().cursor()
-    return cursor_local.cursor
+# Criar tabela de importações se não existir
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS importacoes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        arquivo TEXT NOT NULL,
+        data_importacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+        total_produtos INTEGER DEFAULT 0
+    )
+''')
+
+# Criar índices para melhorar performance
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_produtos_cliente ON produtos(cliente)')
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_produtos_codigo ON produtos(codigo)')
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_produtos_descricao ON produtos(descricao)')
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_produtos_ncm ON produtos(ncm)')
+cursor.execute('CREATE INDEX IF NOT EXISTS idx_importacoes_arquivo ON importacoes(arquivo)')
+
+conn.commit()
 
 # ==============================
-# FUNÇÕES DE IMPORTAÇÃO
+# FUNÇÕES DO BANCO DE DADOS
 # ==============================
 
-
-def extrair_imagens_excel(caminho_arquivo, cliente):
-    """Extrai imagens de um arquivo Excel e salva automaticamente"""
+def importar_planilha(arquivo, callback_progresso=None):
+    """Importa planilha Excel para o banco de dados"""
     try:
         from openpyxl import load_workbook
-        from openpyxl.drawing.image import Image
-        import zipfile
-        import io
-        from PIL import Image as PILImage
         
-        wb = load_workbook(caminho_arquivo)
+        if callback_progresso:
+            callback_progresso(f"Lendo arquivo: {arquivo}")
+        
+        # Carregar workbook
+        wb = load_workbook(arquivo, read_only=True)
         ws = wb.active
         
-        # Criar pasta para o cliente
-        pasta_cliente = os.path.join("imagens", cliente)
-        if not os.path.exists(pasta_cliente):
-            os.makedirs(pasta_cliente)
-        
-        # Extrair imagens do arquivo Excel
-        imagens_salvas = []
-        
-        # Método 1: Tentar extrair do ZIP do Excel
-        try:
-            with zipfile.ZipFile(caminho_arquivo, 'r') as zip_ref:
-                # Procurar por arquivos de imagem
-                for file in zip_ref.namelist():
-                    if file.startswith('xl/media/') and file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                        # Extrair dados da imagem
-                        image_data = zip_ref.read(file)
-                        
-                        # Abrir com PIL para converter se necessário
-                        img = PILImage.open(io.BytesIO(image_data))
-                        
-                        # Salvar como JPG
-                        nome_arquivo = f"imagem_{len(imagens_salvas)+1}.jpg"
-                        caminho_salvo = os.path.join(pasta_cliente, nome_arquivo)
-                        
-                        # Converter para RGB se necessário
-                        if img.mode in ('RGBA', 'LA', 'P'):
-                            img = img.convert('RGB')
-                        
-                        img.save(caminho_salvo, 'JPEG', quality=85)
-                        imagens_salvas.append(nome_arquivo)
-                        print(f"DEBUG: Imagem salva: {caminho_salvo}")
-        
-        except Exception as e:
-            print(f"DEBUG: Erro ao extrair imagens do ZIP: {e}")
-        
-        # Método 2: Tentar extrair usando openpyxl
-        try:
-            if hasattr(ws, '_images'):
-                for i, img in enumerate(ws._images):
-                    nome_arquivo = f"imagem_{len(imagens_salvas)+1}.jpg"
-                    caminho_salvo = os.path.join(pasta_cliente, nome_arquivo)
-                    
-                    # Salvar imagem
-                    img.save(caminho_salvo)
-                    imagens_salvas.append(nome_arquivo)
-                    print(f"DEBUG: Imagem salva via openpyxl: {caminho_salvo}")
-        except Exception as e:
-            print(f"DEBUG: Erro ao extrair imagens com openpyxl: {e}")
-        
-        return imagens_salvas
-        
-    except Exception as e:
-        print(f"DEBUG: Erro geral ao extrair imagens: {e}")
-        return []
-
-def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
-    """Importa uma única planilha (versão thread-safe)"""
-    if not cliente:
-        cliente = os.path.basename(caminho_arquivo).replace('.xlsx', '').replace('.xls', '')
-    
-    try:
-        # Tentar importar openpyxl
-        try:
-            from openpyxl import load_workbook
-        except ImportError:
-            print("ERRO: openpyxl não está instalado. Execute: pip install openpyxl")
-            return 0
-        
-        wb = load_workbook(caminho_arquivo, read_only=True)
-        ws = wb.active
-        
-        # Detectar colunas automaticamente
+        # Detectar cabeçalhos
         cabecalhos = []
         primeira_linha = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
         
-        # Se só tiver uma célula na primeira linha, tenta encontrar cabeçalhos em outras linhas
-        if len([c for c in primeira_linha if c]) == 1:
-            # Tenta encontrar cabeçalhos nas primeiras 5 linhas
-            for row_num in range(1, min(6, ws.max_row + 1)):
-                linha = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
-                if len([c for c in linha if c]) > 1:  # Se tiver mais de uma célula preenchida
-                    for cell in linha:
-                        if cell:
-                            cabecalhos.append(str(cell).strip())
+        for cell in primeira_linha:
+            if cell:
+                cabecalhos.append(str(cell).strip())
+        
+        # Mapeamento de colunas
+        mapeamento_colunas = {
+            'codigo': ['codigo', 'código', 'cod', 'code', 'item', 'sku'],
+            'descricao': ['descricao', 'descrição', 'produto', 'name'],
+            'peso': ['peso', 'weight', 'kg'],
+            'valor': ['valor', 'preço', 'preco', 'price', 'unitario'],
+            'ncm': ['ncm', 'nomenclatura'],
+            'doc': ['doc'],
+            'rev': ['rev'],
+            'quantity': ['quantity', 'quantidade'],
+            'um': ['um'],
+            'ccy': ['ccy', 'moeda'],
+            'total_amount': ['total amount', 'valor total'],
+            'marca': ['marca', 'brand'],
+            'inner_qty': ['inner qty', 'quantidade interna'],
+            'master_qty': ['master qty', 'quantidade master'],
+            'total_ctns': ['total ctns', 'caixas'],
+            'gross_weight': ['gross weight', 'peso bruto'],
+            'net_weight_pc': ['net weight pc', 'peso liquido unit'],
+            'gross_weight_pc': ['gross weight pc', 'peso bruto unit'],
+            'net_weight_ctn': ['net weight ctn', 'peso liquido cx'],
+            'gross_weight_ctn': ['gross weight ctn', 'peso bruto cx'],
+            'factory': ['factory', 'fabrica'],
+            'address': ['address', 'endereco'],
+            'telephone': ['telephone', 'telefone'],
+            'ean13': ['ean13', 'ean'],
+            'dun14_inner': ['dun-14 inner', 'dun14 interno'],
+            'dun14_master': ['dun-14 master', 'dun14 master'],
+            'length': ['length', 'comprimento'],
+            'width': ['width', 'largura'],
+            'height': ['height', 'altura'],
+            'cbm': ['cbm'],
+            'prc_kg': ['prc/kg'],
+            'li': ['li'],
+            'obs': ['obs', 'observacoes'],
+            'status': ['status']
+        }
+        
+        # Encontrar índices das colunas
+        indices_colunas = {}
+        for padrao, alternativas in mapeamento_colunas.items():
+            for i, cabecalho in enumerate(cabecalhos):
+                if cabecalho.lower() in [alt.lower() for alt in alternativas]:
+                    indices_colunas[padrao] = i
                     break
-        else:
-            # Usa a primeira linha como cabeçalho
-            for cell in primeira_linha:
-                if cell:
-                    cabecalhos.append(str(cell).strip())
         
-        print(f"DEBUG: Cabeçalhos encontrados: {cabecalhos}")
+        # Nome do cliente (baseado no nome do arquivo)
+        nome_arquivo = os.path.basename(arquivo)
+        cliente_padrao = os.path.splitext(nome_arquivo)[0]
         
-        # Encontrar índice da coluna PICTURE
-        picture_col_index = None
-        for i, cabecalho in enumerate(cabecalhos):
-            if 'PICTURE' in cabecalho.upper():
-                picture_col_index = i
-                break
-        
-        # Se não encontrou colunas padrão, assume posições fixas
-        if len(cabecalhos) == 0:
-            cabecalhos = ['codigo', 'descricao', 'peso', 'valor', 'ncm']
-        
-        colunas_detectadas = detectar_colunas_excel(cabecalhos)
-        print(f"DEBUG: Colunas detectadas: {colunas_detectadas}")
-        
-        # Preparar colunas extras dinâmicas (suporte a 100+ colunas)
-        preparar_colunas_extras(cabecalhos)
-        
-        # Obter colunas atualizadas do banco após adicionar extras
-        colunas_banco = get_colunas_banco()
-        print(f"DEBUG: Total de colunas no banco: {len(colunas_banco)}")
-        
-        # Criar mapeamento de índice do Excel para nome da coluna no banco
-        mapeamento_excel_banco = {}
-        for i, cab in enumerate(cabecalhos):
-            nome_norm = normalizar_nome_coluna(cab)
-            if nome_norm and nome_norm in colunas_banco:
-                mapeamento_excel_banco[i] = nome_norm
-        
-        # Se não detectou colunas, mapeia por posição
-        if not colunas_detectadas and len(cabecalhos) >= 5:
-            colunas_detectadas = {
-                'codigo': cabecalhos[0] if len(cabecalhos) > 0 else '',
-                'descricao': cabecalhos[1] if len(cabecalhos) > 1 else '',
-                'peso': cabecalhos[2] if len(cabecalhos) > 2 else '',
-                'valor': cabecalhos[3] if len(cabecalhos) > 3 else '',
-                'ncm': cabecalhos[4] if len(cabecalhos) > 4 else ''
-            }
-            print(f"DEBUG: Colunas mapeadas por posição: {colunas_detectadas}")
-        
-        # Construir SQL dinâmico baseado nas colunas do banco
-        colunas_insert = [c for c in colunas_banco.keys() if c != 'id']
-        sql_colunas = ', '.join(colunas_insert)
-        sql_valores = ', '.join(['?' for _ in colunas_insert])
-        sql_insert = f"INSERT INTO produtos ({sql_colunas}) VALUES ({sql_valores})"
-        
+        # Importar em batch para performance
+        batch_size = 500
+        dados_batch = []
         total_importados = 0
         data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        # Extrair imagens automaticamente
-        print(f"DEBUG: Extraindo imagens de {caminho_arquivo}")
-        imagens_salvas = extrair_imagens_excel(caminho_arquivo, cliente)
-        print(f"DEBUG: {len(imagens_salvas)} imagens extraídas")
-        
-        # Batch insert para maior performance
-        batch_size = 1000
-        dados_batch = []
-        
-        # Obter conexão e cursor thread-safe
-        conn_thread = get_connection()
-        cursor_thread = get_cursor()
-        
-        # Pular linha de cabeçalho e começar da linha 2
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            # Pular linhas vazias
+        # Pular cabeçalho e processar linhas
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
             
-            # Preparar dicionário de valores para cada coluna do banco
-            valores_dict = {}
+            # Extrair dados da linha
+            dados = {
+                'cliente': cliente_padrao,
+                'arquivo_origem': nome_arquivo,
+                'data_importacao': data_atual
+            }
             
-            # Preencher valores mapeados do Excel
-            for i, cell in enumerate(row):
-                if i in mapeamento_excel_banco:
-                    coluna_banco = mapeamento_excel_banco[i]
-                    valores_dict[coluna_banco] = str(cell).strip() if cell is not None else ''
+            for campo, indice in indices_colunas.items():
+                if indice < len(row):
+                    cell_value = row[indice]
+                    dados[campo] = str(cell_value).strip() if cell_value else ''
+                else:
+                    dados[campo] = ''
             
-            # Adicionar campos obrigatórios
-            valores_dict['cliente'] = cliente
-            valores_dict['arquivo_origem'] = os.path.basename(caminho_arquivo)
-            valores_dict['data_importacao'] = data_atual
-            
-            # Criar tupla na ordem das colunas do INSERT
-            valores_tupla = tuple(valores_dict.get(c, '') for c in colunas_insert)
-            dados_batch.append(valores_tupla)
-            
-            # Debug primeira linha
-            if total_importados == 0:
-                print(f"DEBUG: Primeira linha - valores: {valores_tupla[:10]}...")
+            # Adicionar ao batch
+            dados_batch.append((
+                dados['cliente'],
+                dados.get('arquivo_origem', ''),
+                dados.get('codigo', ''),
+                dados.get('descricao', ''),
+                dados.get('peso', ''),
+                dados.get('valor', ''),
+                dados.get('ncm', ''),
+                dados.get('doc', ''),
+                dados.get('rev', ''),
+                dados.get('code', ''),
+                dados.get('quantity', ''),
+                dados.get('um', ''),
+                dados.get('ccy', ''),
+                dados.get('total_amount', ''),
+                dados.get('marca', ''),
+                dados.get('inner_qty', ''),
+                dados.get('master_qty', ''),
+                dados.get('total_ctns', ''),
+                dados.get('gross_weight', ''),
+                dados.get('net_weight_pc', ''),
+                dados.get('gross_weight_pc', ''),
+                dados.get('net_weight_ctn', ''),
+                dados.get('gross_weight_ctn', ''),
+                dados.get('factory', ''),
+                dados.get('address', ''),
+                dados.get('telephone', ''),
+                dados.get('ean13', ''),
+                dados.get('dun14_inner', ''),
+                dados.get('dun14_master', ''),
+                dados.get('length', ''),
+                dados.get('width', ''),
+                dados.get('height', ''),
+                dados.get('cbm', ''),
+                dados.get('prc_kg', ''),
+                dados.get('li', ''),
+                dados.get('obs', ''),
+                dados.get('status', ''),
+                dados['data_importacao']
+            ))
             
             # Insert em batch
             if len(dados_batch) >= batch_size:
-                cursor_thread.executemany(sql_insert, dados_batch)
-                conn_thread.commit()
+                cursor.executemany('''
+                    INSERT INTO produtos (
+                        cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                        quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
+                        total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
+                        net_weight_ctn, gross_weight_ctn, factory, address, telephone,
+                        ean13, dun14_inner, dun14_master, length, width, height, cbm,
+                        prc_kg, li, obs, status, data_importacao
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', dados_batch)
+                conn.commit()
                 total_importados += len(dados_batch)
                 dados_batch = []
                 
-                if progress_callback and total_importados % 5000 == 0:
-                    progress_callback(f"Importados: {total_importados:,}")
+                if callback_progresso and total_importados % 1000 == 0:
+                    callback_progresso(f"Importados: {total_importados:,} produtos")
         
         # Insert final do batch restante
         if dados_batch:
-            cursor_thread.executemany(sql_insert, dados_batch)
-            conn_thread.commit()
+            cursor.executemany('''
+                INSERT INTO produtos (
+                    cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                    quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
+                    total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
+                    net_weight_ctn, gross_weight_ctn, factory, address, telephone,
+                    ean13, dun14_inner, dun14_master, length, width, height, cbm,
+                    prc_kg, li, obs, status, data_importacao
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', dados_batch)
+            conn.commit()
             total_importados += len(dados_batch)
         
         wb.close()
         
         # Registrar importação
-        cursor_thread.execute("""
-            INSERT INTO importacoes (cliente, arquivo, data_importacao, total_registros)
-            VALUES (?, ?, ?, ?)
-        """, (cliente, os.path.basename(caminho_arquivo), data_atual, total_importados))
-        conn_thread.commit()
+        cursor.execute('''
+            INSERT INTO importacoes (arquivo, total_produtos)
+            VALUES (?, ?)
+        ''', (nome_arquivo, total_importados))
+        conn.commit()
+        
+        if callback_progresso:
+            callback_progresso(f"Importação concluída: {total_importados} produtos")
         
         return total_importados
         
     except Exception as e:
-        print(f"Erro ao importar {caminho_arquivo}: {str(e)}")
+        if callback_progresso:
+            callback_progresso(f"Erro na importação: {str(e)}")
+        raise e
+
+def importar_todas_planilhas(callback_progresso=None):
+    """Importa todas as planilhas da pasta 'planilhas'"""
+    pasta_planilhas = 'planilhas'
+    
+    if not os.path.exists(pasta_planilhas):
+        os.makedirs(pasta_planilhas)
+        if callback_progresso:
+            callback_progresso("Pasta 'planilhas' criada. Adicione suas planilhas Excel nela.")
         return 0
-
-def detectar_colunas_excel(cabecalhos):
-    """Detecta colunas em planilha Excel"""
-    colunas_detectadas = {}
     
-    # Mapeamento completo para todas as colunas
-    mapeamento = {
-        'codigo': ['ITEM'],
-        'descricao': ['DESCRIÇÃO PORTUGUES (DESCRIPTION PORTUGUESE)'],
-        'peso': ['TOTAL NET WEIGHT( kg )'],
-        'valor': ['UNIT PRICE UMO'],
-        'ncm': ['CODE'],
-        'doc': ['DOC'],
-        'rev': ['REV'],
-        'quantity': ['QUANTITY'],
-        'um': ['UM'],
-        'ccy': ['CCY'],
-        'total_amount': ['TOTAL AMOUNT UMO'],
-        'marca': ['MARCA (BRAND)'],
-        'inner_qty': ['INNER QUANTITY'],
-        'master_qty': ['MASTER QUANTITY'],
-        'total_ctns': ['TOTAL CTNS'],
-        'gross_weight': ['TOTAL GROSS WEIGHT( kg )'],
-        'net_weight_pc': ['NET WEIGHT / PC( g )'],
-        'gross_weight_pc': ['GROSS WEIGHT / PC( g )'],
-        'net_weight_ctn': ['NET WEIGHT / CTN( kg )'],
-        'gross_weight_ctn': ['GROSS WEIGHT / CTN( kg )'],
-        'factory': ['NAME OF FACTORY'],
-        'address': ['ADDRESS OF FACTORY'],
-        'telephone': ['TELEPHONE'],
-        'ean13': ['EAN13'],
-        'dun14_inner': ['DUN-14 INNER'],
-        'dun14_master': ['DUN-14 MASTER'],
-        'length': ['LENGTH CTN'],
-        'width': ['WIDTH CTN'],
-        'height': ['HEIGHT CTN'],
-        'cbm': ['TOTAL CBM'],
-        'prc_kg': ['PRC/KG'],
-        'li': ['LI'],
-        'obs': ['OBS'],
-        'status': ['STATUS DA COMPRA']
-    }
+    arquivos_excel = []
+    for arquivo in os.listdir(pasta_planilhas):
+        if arquivo.endswith(('.xlsx', '.xls')):
+            arquivos_excel.append(os.path.join(pasta_planilhas, arquivo))
     
-    # Primeiro tenta mapeamento exato
-    for col_padrao, alternativas in mapeamento.items():
-        for cabecalho in cabecalhos:
-            if cabecalho in alternativas:
-                colunas_detectadas[col_padrao] = cabecalho
-                break
-    
-    return colunas_detectadas
-
-def get_colunas_banco():
-    """Obtém lista EXATA de colunas do banco"""
-    cursor_temp = get_cursor()
-    cursor_temp.execute("PRAGMA table_info(produtos)")
-    colunas = {}
-    for col in cursor_temp.fetchall():
-        nome = col[1]
-        tipo = col[2]
-        notnull = col[3]
-        default = col[4]
-        colunas[nome] = {'tipo': tipo, 'notnull': notnull, 'default': default}
-    return colunas
-
-def normalizar_nome_coluna(nome):
-    """Normaliza nome da coluna para ser válido no SQLite"""
-    if not nome:
-        return None
-    import re
-    nome = str(nome).strip().lower()
-    nome = re.sub(r'[^\w\s]', '_', nome)
-    nome = re.sub(r'\s+', '_', nome)
-    nome = re.sub(r'_+', '_', nome)
-    nome = nome.strip('_')
-    
-    if len(nome) > 50:
-        nome = nome[:50]
-    if not nome or nome.replace('_', '').isdigit():
-        return None
-    return nome
-
-def adicionar_coluna_dinamica(nome_coluna, tipo='TEXT'):
-    """Adiciona uma nova coluna à tabela se não existir"""
-    try:
-        colunas = get_colunas_banco()
-        if nome_coluna in colunas:
-            return True
-        
-        # Limite de 100 colunas
-        if len(colunas) >= 100:
-            print(f"⚠️ Limite de 100 colunas atingido")
-            return False
-        
-        cursor_temp = get_cursor()
-        sql = f"ALTER TABLE produtos ADD COLUMN {nome_coluna} {tipo} DEFAULT ''"
-        cursor_temp.execute(sql)
-        get_connection().commit()
-        print(f"✅ Coluna criada: {nome_coluna}")
-        return True
-    except Exception as e:
-        print(f"❌ Erro ao criar coluna {nome_coluna}: {e}")
-        return False
-
-def preparar_colunas_extras(cabecalhos_excel):
-    """Prepara o banco para receber todas as colunas do Excel"""
-    print(f"\n🔧 Preparando colunas dinâmicas...")
-    
-    colunas_banco = get_colunas_banco()
-    colunas_adicionadas = 0
-    
-    for cab in cabecalhos_excel:
-        nome_norm = normalizar_nome_coluna(cab)
-        if nome_norm and nome_norm not in colunas_banco:
-            if adicionar_coluna_dinamica(nome_norm, 'TEXT'):
-                colunas_adicionadas += 1
-    
-    if colunas_adicionadas > 0:
-        print(f"✅ {colunas_adicionadas} colunas extras adicionadas")
-    
-    return colunas_adicionadas
-
-def limpar_banco_dados():
-    """Limpa todos os dados do banco"""
-    cursor = get_cursor()
-    cursor.execute("DELETE FROM produtos")
-    cursor.execute("DELETE FROM importacoes")
-    get_connection().commit()
-    print("DEBUG: Banco de dados limpo")
-
-def importar_todas_planilhas(progress_callback=None):
-    pasta = "planilhas"
-    
-    if not os.path.exists(pasta):
-        os.makedirs(pasta)
+    if not arquivos_excel:
+        if callback_progresso:
+            callback_progresso("Nenhuma planilha encontrada na pasta 'planilhas'")
         return 0
     
     total_geral = 0
-    arquivos_processados = 0
-    
-    for arquivo in os.listdir(pasta):
-        if arquivo.endswith(('.xlsx', '.xls')):
-            caminho = os.path.join(pasta, arquivo)
-            importados = importar_planilha(caminho, progress_callback=progress_callback)
-            total_geral += importados
-            arquivos_processados += 1
-            
-            if progress_callback:
-                progress_callback(f"Arquivo {arquivos_processados}: {importados} produtos")
+    for arquivo in arquivos_excel:
+        try:
+            total = importar_planilha(arquivo, callback_progresso)
+            total_geral += total
+        except Exception as e:
+            if callback_progresso:
+                callback_progresso(f"Erro ao importar {arquivo}: {str(e)}")
     
     return total_geral
 
-def importar_arquivos_selecionados(arquivos, progress_callback=None):
+def importar_arquivos_selecionados(arquivos, callback_progresso=None):
     """Importa arquivos selecionados pelo usuário"""
     total_geral = 0
-    
-    for caminho in arquivos:
-        importados = importar_planilha(caminho, progress_callback=progress_callback)
-        total_geral += importados
-        
-        if progress_callback:
-            progress_callback(f"Arquivo: {os.path.basename(caminho)} - {importados} produtos")
+    for arquivo in arquivos:
+        try:
+            total = importar_planilha(arquivo, callback_progresso)
+            total_geral += total
+        except Exception as e:
+            if callback_progresso:
+                callback_progresso(f"Erro ao importar {arquivo}: {str(e)}")
     
     return total_geral
-
-# ==============================
-# FUNÇÕES DE BUSCA
-# ==============================
 
 def buscar_produtos(termo='', cliente='Todos'):
     """Busca produtos no banco de dados"""
-    query = """SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev, quantity, um, ccy, total_amount, marca, inner_qty, master_qty, total_ctns, gross_weight, net_weight_pc, gross_weight_pc, net_weight_ctn, gross_weight_ctn, factory, address, telephone, ean13, dun14_inner, dun14_master, length, width, height, cbm, prc_kg, li, obs, status FROM produtos WHERE 1=1"""
+    query = """SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                     quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
+                     total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
+                     net_weight_ctn, gross_weight_ctn, factory, address, telephone,
+                     ean13, dun14_inner, dun14_master, length, width, height, cbm,
+                     prc_kg, li, obs, status
+             FROM produtos WHERE 1=1"""
     params = []
     
     if termo and termo != '*':
@@ -512,81 +344,51 @@ def buscar_produtos(termo='', cliente='Todos'):
     
     query += " ORDER BY cliente, arquivo, descricao"
     
-    cursor = get_cursor()
     cursor.execute(query, params)
-    resultados = cursor.fetchall()
-    
-    # Adicionar informação de imagem para cada produto
-    resultados_com_imagem = []
-    for resultado in resultados:
-        cliente = resultado[0]
-        codigo = resultado[2]
-        
-        # Procurar imagem na pasta imagens/
-        nome_imagem = f"{codigo}.jpg" if codigo else "default.jpg"
-        caminho_imagem = os.path.join("imagens", cliente, nome_imagem)
-        
-        if os.path.exists(caminho_imagem):
-            status_imagem = "✅ Foto"
-        else:
-            status_imagem = "❌ Sem foto"
-        
-        # Adicionar status da imagem como último campo
-        resultado_com_imagem = resultado + (status_imagem,)
-        resultados_com_imagem.append(resultado_com_imagem)
-    
-    return resultados_com_imagem
+    return cursor.fetchall()
 
 def listar_clientes():
-    """Lista todos os clientes únicos (thread-safe)"""
-    conn_thread = get_connection()
-    cursor_thread = get_cursor()
-    cursor_thread.execute("SELECT DISTINCT cliente FROM produtos ORDER BY cliente")
-    clientes = [row[0] for row in cursor_thread.fetchall()]
-    print(f"DEBUG: Clientes encontrados: {clientes}")
-    return clientes
+    """Lista todos os clientes únicos"""
+    cursor.execute("SELECT DISTINCT cliente FROM produtos ORDER BY cliente")
+    return [row[0] for row in cursor.fetchall()]
 
 def contar_produtos():
-    """Conta total de produtos (thread-safe)"""
-    conn_thread = get_connection()
-    cursor_thread = get_cursor()
-    cursor_thread.execute("SELECT COUNT(*) FROM produtos")
-    total = cursor_thread.fetchone()[0]
-    print(f"DEBUG: Total de produtos: {total}")
-    return total
+    """Conta total de produtos"""
+    cursor.execute("SELECT COUNT(*) FROM produtos")
+    return cursor.fetchone()[0]
 
 def contar_importacoes():
-    """Conta total de importações (thread-safe)"""
-    conn_thread = get_connection()
-    cursor_thread = get_cursor()
-    cursor_thread.execute("SELECT COUNT(*) FROM importacoes")
-    return cursor_thread.fetchone()[0]
-
-# ==============================
-# FUNÇÕES DE EXPORTAÇÃO
-# ==============================
+    """Conta total de importações"""
+    cursor.execute("SELECT COUNT(*) FROM importacoes")
+    return cursor.fetchone()[0]
 
 def exportar_resultados(resultados, formato='excel'):
-    """Exporta resultados da busca (versão sem pandas)"""
+    """Exporta resultados para Excel ou CSV"""
     if not resultados:
         return None
     
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    nome_arquivo = f"resultados_exportados_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     if formato == 'excel':
-        arquivo = f"resultados_busca_{timestamp}.csv"  # CSV como fallback
-        with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
+        try:
+            import pandas as pd
+            colunas_completas = ['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
+            df = pd.DataFrame(resultados, columns=colunas_completas)
+            nome_arquivo += '.xlsx'
+            df.to_excel(nome_arquivo, index=False)
+            return nome_arquivo
+        except ImportError:
+            # Se não tiver pandas, exporta como CSV
+            formato = 'csv'
+    
+    if formato == 'csv':
+        nome_arquivo += '.csv'
+        colunas_completas = ['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
+        with open(nome_arquivo, 'w', newline='', encoding='utf-8-sig') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(colunas_completas)
             writer.writerows(resultados)
-        return arquivo
-    elif formato == 'csv':
-        arquivo = f"resultados_busca_{timestamp}.csv"
-        with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
-            writer.writerows(resultados)
-        return arquivo
+        return nome_arquivo
     
     return None
 
@@ -597,7 +399,7 @@ def exportar_resultados(resultados, formato='excel'):
 class SistemaPlanilhas:
     def __init__(self):
         self.janela = tk.Tk()
-        self.janela.title("Sistema Profissional de Planilhas - Busca Rápida")
+        self.janela.title("📊 Sistema de Gerenciamento de Planilhas v1.0")
         self.janela.geometry("1200x700")
         self.janela.configure(bg='#f0f0f0')
         
@@ -605,108 +407,52 @@ class SistemaPlanilhas:
         self.termo_busca = tk.StringVar()
         self.cliente_selecionado = tk.StringVar(value="Todos")
         
+        # Criar interface
         self.criar_interface()
+        
+        # Atualizar estatísticas iniciais
         self.atualizar_estatisticas()
         self.atualizar_lista_clientes()
     
     def criar_interface(self):
-        # Frame superior - Estatísticas
-        frame_stats = tk.Frame(self.janela, bg='#2c3e50', height=160)
-        frame_stats.pack(fill='x', padx=5, pady=5)
-        frame_stats.pack_propagate(False)
-        
-        # Frame para logo e título (linha superior)
-        frame_logo_titulo = tk.Frame(frame_stats, bg='#2c3e50')
-        frame_logo_titulo.pack(fill='x', pady=(10, 5))
-        
-        # Logo no canto esquerdo
-        try:
-            logo_path = os.path.join("img", "Penacho laranja em fundo neutro.png")
-            if os.path.exists(logo_path):
-                # Carregar e redimensionar imagem
-                logo_image = Image.open(logo_path)
-                logo_image = logo_image.resize((80, 80), Image.Resampling.LANCZOS)
-                logo_photo = ImageTk.PhotoImage(logo_image)
-                
-                logo_label = tk.Label(frame_logo_titulo, image=logo_photo, bg='#2c3e50')
-                logo_label.image = logo_photo  # Manter referência
-                logo_label.pack(side='left', padx=(20, 15))
-            else:
-                # Fallback para emoji se imagem não existir
-                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 64), bg='#2c3e50', fg='white')
-                logo_label.pack(side='left', padx=(20, 15))
-        except Exception as e:
-            # Fallback para emoji em caso de erro
-            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 64), bg='#2c3e50', fg='white')
-            logo_label.pack(side='left', padx=(20, 15))
-        
-        # Título ao lado do logo
-        titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
-        titulo_label.pack(side='left', padx=(0, 20))
-        
-        # Frame de navegação no canto direito
-        frame_navegacao = tk.Frame(frame_logo_titulo, bg='#2c3e50')
-        frame_navegacao.pack(side='right', padx=(20, 0))
-        
-        # Botão para ir para o Sistema Plus
-        btn_ir_para_plus = tk.Button(frame_navegacao, text="⭐ Sistema PLUS", 
-                                   command=self.ir_para_sistema_plus,
-                                   bg='#9b59b6', fg='white', font=('Arial', 10, 'bold'),
-                                   relief='raised', bd=2, cursor='hand2')
-        btn_ir_para_plus.pack(pady=2)
-        
-        # Estatísticas em linha separada (linha inferior)
-        frame_stats_container = tk.Frame(frame_stats, bg='#2c3e50')
-        frame_stats_container.pack(fill='x', pady=(5, 15))
-        
-        self.label_stats = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', font=('Arial', 12, 'bold'))
-        self.label_stats.pack()
+        """Cria a interface gráfica"""
+        # Frame principal
+        frame_principal = tk.Frame(self.janela, bg='#f0f0f0')
+        frame_principal.pack(fill='both', expand=True, padx=10, pady=10)
         
         # Frame de busca
-        frame_busca = tk.LabelFrame(self.janela, text="🔍 Busca Avançada", font=('Arial', 12, 'bold'), bg='#f0f0f0')
-        frame_busca.pack(fill='x', padx=10, pady=5)
+        frame_busca = tk.LabelFrame(frame_principal, text="🔍 Busca de Produtos", font=('Arial', 12, 'bold'), bg='#f0f0f0')
+        frame_busca.pack(fill='x', pady=(0, 10))
         
-        # Container para alinhamento perfeito
-        frame_busca_container = tk.Frame(frame_busca, bg='#f0f0f0')
-        frame_busca_container.pack(fill='x', padx=10, pady=10)
-        
-        # Linha 1 - Campo de busca
-        frame_busca_linha1 = tk.Frame(frame_busca_container, bg='#f0f0f0')
-        frame_busca_linha1.pack(fill='x', pady=(0, 5))
+        # Primeira linha de busca
+        frame_busca_linha1 = tk.Frame(frame_busca, bg='#f0f0f0')
+        frame_busca_linha1.pack(fill='x', padx=10, pady=5)
         
         tk.Label(frame_busca_linha1, text="Buscar:", font=('Arial', 10, 'bold'), bg='#f0f0f0', fg='#2c3e50').pack(side='left', padx=(0, 10))
-        self.campo_busca = tk.Entry(frame_busca_linha1, textvariable=self.termo_busca, font=('Arial', 10), width=40, relief='solid', bd=1)
-        self.campo_busca.pack(side='left', padx=(0, 10), fill='x', expand=True)
-        self.campo_busca.bind('<Return>', lambda e: self.executar_busca())
+        self.entry_busca = tk.Entry(frame_busca_linha1, textvariable=self.termo_busca, font=('Arial', 10), width=40)
+        self.entry_busca.pack(side='left', padx=(0, 10))
+        self.entry_busca.bind('<Return>', lambda e: self.executar_busca())
         
-        # Botões de busca alinhados
-        frame_botoes_busca = tk.Frame(frame_busca_linha1, bg='#f0f0f0')
-        frame_botoes_busca.pack(side='right')
-        
-        tk.Button(frame_botoes_busca, text="🔎 Buscar", command=self.executar_busca, 
+        tk.Button(frame_busca_linha1, text="🔎 Buscar", command=self.executar_busca,
                  bg='#3498db', fg='white', font=('Arial', 10, 'bold'), width=12, height=1,
-                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=(0, 5))
+                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_botoes_busca, text="🗑️ Limpar", command=self.limpar_busca,
-                 bg='#e74c3c', fg='white', font=('Arial', 10, 'bold'), width=12, height=1,
-                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=(0, 5))
+        tk.Button(frame_busca_linha1, text="🗑️ Limpar", command=self.limpar_busca,
+                 bg='#95a5a6', fg='white', font=('Arial', 10, 'bold'), width=12, height=1,
+                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        # Linha 2 - Filtros
-        frame_busca_linha2 = tk.Frame(frame_busca_container, bg='#f0f0f0')
-        frame_busca_linha2.pack(fill='x', pady=(5, 0))
+        # Segunda linha de busca
+        frame_busca_linha2 = tk.Frame(frame_busca, bg='#f0f0f0')
+        frame_busca_linha2.pack(fill='x', padx=10, pady=5)
         
         tk.Label(frame_busca_linha2, text="Cliente:", font=('Arial', 10, 'bold'), bg='#f0f0f0', fg='#2c3e50').pack(side='left', padx=(0, 10))
         self.combo_clientes = ttk.Combobox(frame_busca_linha2, textvariable=self.cliente_selecionado, 
                                           state='readonly', width=30, font=('Arial', 10))
         self.combo_clientes.pack(side='left')
         
-        # Frame único para ambas as categorias na mesma linha
-        frame_categorias = tk.Frame(self.janela, bg='#f0f0f0')
-        frame_categorias.pack(fill='x', padx=10, pady=5)
-        
-        # Frame de importação (lado esquerdo)
-        frame_import = tk.LabelFrame(frame_categorias, text="📂 Importação de Planilhas", font=('Arial', 12, 'bold'), bg='#f0f0f0')
-        frame_import.pack(side='left', fill='both', expand=True, padx=(0, 5), pady=5)
+        # Frame de importação
+        frame_import = tk.LabelFrame(self.janela, text="📂 Importação de Planilhas", font=('Arial', 12, 'bold'), bg='#f0f0f0')
+        frame_import.pack(fill='x', padx=10, pady=5)
         
         # Container para botões de importação
         frame_botoes_import = tk.Frame(frame_import, bg='#f0f0f0')
@@ -725,9 +471,9 @@ class SistemaPlanilhas:
                  bg='#e67e22', fg='white', font=('Arial', 9, 'bold'), width=18, height=2,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        # Frame de visão geral (lado direito)
-        frame_visao = tk.LabelFrame(frame_categorias, text="🎯 Visão Geral", font=('Arial', 12, 'bold'), bg='#f0f0f0')
-        frame_visao.pack(side='left', fill='both', expand=True, padx=(5, 0), pady=5)
+        # Frame de visão geral
+        frame_visao = tk.LabelFrame(self.janela, text="🎯 Visão Geral", font=('Arial', 12, 'bold'), bg='#f0f0f0')
+        frame_visao.pack(fill='x', padx=10, pady=5)
         
         # Container para botões de visão geral
         frame_botoes_visao = tk.Frame(frame_visao, bg='#f0f0f0')
@@ -762,10 +508,6 @@ class SistemaPlanilhas:
                  bg='#16a085', fg='white', font=('Arial', 10, 'bold'), width=15, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="🖼️ Ver Foto", command=self.ver_foto,
-                 bg='#e67e22', fg='white', font=('Arial', 10, 'bold'), width=12, height=1,
-                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
-        
         self.label_resultados = tk.Label(frame_export, text="0 resultados encontrados", bg='#f0f0f0', font=('Arial', 10))
         self.label_resultados.pack(side='right', padx=5)
         
@@ -773,7 +515,7 @@ class SistemaPlanilhas:
         frame_tabela = tk.Frame(frame_resultados)
         frame_tabela.pack(fill='both', expand=True, padx=5, pady=5)
         
-        self.colunas = ('Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'Imagem', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS')
+        self.colunas = ('Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS')
         self.tabela = ttk.Treeview(frame_tabela, columns=self.colunas, show='headings', height=15)
         
         # Configurar colunas
@@ -787,8 +529,6 @@ class SistemaPlanilhas:
                 self.tabela.column(col, width=120)
             elif col in ['Código', 'Peso', 'Valor', 'QUANTITY', 'TOTAL CTNS']:
                 self.tabela.column(col, width=80)
-            elif col == 'Imagem':
-                self.tabela.column(col, width=60)
             else:
                 self.tabela.column(col, width=70)
         
@@ -941,94 +681,6 @@ class SistemaPlanilhas:
         if arquivo:
             messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
             self.status_bar.config(text=f"Exportado para {arquivo}")
-    
-    def ver_foto(self):
-        """Abre janela para visualizar foto do produto selecionado"""
-        selecionado = self.tabela.selection()
-        if not selecionado:
-            messagebox.showwarning("Aviso", "Selecione um produto na tabela para ver a foto.")
-            return
-        
-        item = self.tabela.item(selecionado[0])
-        valores = item['values']
-        
-        if len(valores) < 8:
-            messagebox.showwarning("Aviso", "Produto não possui informações completas.")
-            return
-        
-        cliente = valores[0]
-        codigo = valores[2]
-        
-        # Procurar imagem
-        nome_imagem = f"{codigo}.jpg" if codigo else "default.jpg"
-        caminho_imagem = os.path.join("imagens", cliente, nome_imagem)
-        
-        # Criar pasta se não existir
-        pasta_imagens = os.path.join("imagens", cliente)
-        if not os.path.exists(pasta_imagens):
-            os.makedirs(pasta_imagens)
-        
-        # Janela para visualizar imagem
-        janela_foto = tk.Toplevel(self.janela)
-        janela_foto.title(f"🖼️ Foto do Produto - {codigo}")
-        janela_foto.geometry("600x500")
-        janela_foto.configure(bg='#2c3e50')
-        
-        # Frame principal
-        frame_principal = tk.Frame(janela_foto, bg='#2c3e50')
-        frame_principal.pack(fill='both', expand=True, padx=20, pady=20)
-        
-        # Informações do produto
-        info_text = f"Cliente: {cliente}\nCódigo: {codigo}\nDescrição: {valores[3] if len(valores) > 3 else 'N/A'}"
-        tk.Label(frame_principal, text=info_text, font=('Arial', 12, 'bold'), 
-                bg='#2c3e50', fg='white', justify='left').pack(pady=(0, 10))
-        
-        try:
-            if os.path.exists(caminho_imagem):
-                # Carregar e exibir imagem
-                img = Image.open(caminho_imagem)
-                img.thumbnail((500, 300), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
-                
-                label_img = tk.Label(frame_principal, image=photo, bg='#2c3e50')
-                label_img.image = photo  # Manter referência
-                label_img.pack(pady=10)
-                
-                status = "✅ Foto encontrada"
-                cor = '#2ecc71'
-            else:
-                # Imagem não encontrada
-                label_img = tk.Label(frame_principal, text="📷\n\nFOTO NÃO ENCONTRADA\n\nAdicione a imagem em:\n" + caminho_imagem,
-                                 font=('Arial', 14), bg='#34495e', fg='#e74c3c', 
-                                 width=30, height=15, relief='raised', bd=2)
-                label_img.pack(pady=10)
-                
-                status = "❌ Foto não encontrada"
-                cor = '#e74c3c'
-            
-            tk.Label(frame_principal, text=status, font=('Arial', 12, 'bold'), 
-                    bg='#2c3e50', fg=cor).pack(pady=10)
-            
-        except Exception as e:
-            tk.Label(frame_principal, text=f"Erro ao carregar imagem: {str(e)}", 
-                    font=('Arial', 11), bg='#2c3e50', fg='#e74c3c').pack(pady=10)
-        
-        # Botões
-        frame_botoes = tk.Frame(janela_foto, bg='#2c3e50')
-        frame_botoes.pack(pady=10)
-        
-        tk.Button(frame_botoes, text="📁 Abrir Pasta", 
-                 command=lambda: os.startfile(os.path.join("imagens", cliente)),
-                 bg='#3498db', fg='white', font=('Arial', 10, 'bold'), 
-                 width=15, height=1).pack(side='left', padx=5)
-        
-        tk.Button(frame_botoes, text="✅ Fechar", command=janela_foto.destroy,
-                 bg='#27ae60', fg='white', font=('Arial', 10, 'bold'), 
-                 width=15, height=1).pack(side='left', padx=5)
-        
-        # Centralizar janela
-        janela_foto.transient(self.janela)
-        janela_foto.grab_set()
     
     def exportar_csv(self):
         """Exporta resultados para CSV"""
@@ -1498,12 +1150,6 @@ class SistemaPlanilhas:
             messagebox.showerror("Erro", 
                 "Não foi possível abrir o Sistema PLUS. Verifique se o arquivo 'sistema_plus.py' existe na pasta.")
     
-    def ir_para_sistema_plus(self):
-        """Navega para o Sistema Plus"""
-        if messagebox.askyesno("Navegar para Sistema PLUS", 
-                              "Deseja fechar o Sistema Original e abrir o Sistema PLUS?"):
-            self.executar_sistema_plus()
-    
     def executar(self):
         """Inicia a interface"""
         self.janela.mainloop()
@@ -1513,8 +1159,5 @@ class SistemaPlanilhas:
 # ==============================
 
 if __name__ == "__main__":
-    # Limpar banco e reimportar
-    limpar_banco_dados()
-    
     app = SistemaPlanilhas()
     app.executar()

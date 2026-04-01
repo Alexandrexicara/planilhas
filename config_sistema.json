@@ -1,0 +1,9 @@
+{
+    "servidor": "https://seu-servidor.com/api",
+    "dias_offline_max": 7,
+    "modo_debug": true,
+    "timeout_conexao": 10,
+    "tentativas_reconexao": 3,
+    "intervalo_sincronizacao": 30,
+    "versao_sistema": "1.0.0"
+}
