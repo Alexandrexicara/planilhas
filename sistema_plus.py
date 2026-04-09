@@ -366,9 +366,59 @@ class SistemaPlanilhasPlus:
         # Variáveis
         self.termo_busca = tk.StringVar()
         self.cliente_selecionado = tk.StringVar(value="Todos")
+        self.pasta_exportacoes = self.carregar_configuracao_exportacoes_plus()
         
         self.criar_interface_plus()
         self.atualizar_estatisticas_interface()
+    
+    def carregar_configuracao_exportacoes_plus(self):
+        """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
+        arquivo_config = "config_exportacoes_plus.json"
+        if os.path.exists(arquivo_config):
+            try:
+                with open(arquivo_config, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    pasta = config.get('pasta_exportacoes', 'exportacoes')
+                    if os.path.exists(pasta):
+                        return pasta
+                    if not os.path.exists('exportacoes'):
+                        os.makedirs('exportacoes')
+                    return 'exportacoes'
+            except Exception as e:
+                print(f"DEBUG: Erro ao carregar configuracao PLUS: {e}")
+        
+        if not os.path.exists('exportacoes'):
+            os.makedirs('exportacoes')
+        return 'exportacoes'
+    
+    def salvar_configuracao_exportacoes_plus(self, pasta):
+        """Salva a configuracao da pasta exportacoes em um arquivo JSON"""
+        arquivo_config = "config_exportacoes_plus.json"
+        try:
+            with open(arquivo_config, 'w', encoding='utf-8') as f:
+                json.dump({'pasta_exportacoes': pasta}, f, indent=4)
+            print(f"DEBUG: Configuracao PLUS salva: {pasta}")
+        except Exception as e:
+            print(f"DEBUG: Erro ao salvar configuracao PLUS: {e}")
+    
+    def escolher_pasta_exportacoes_plus(self):
+        """Abre dialogo para escolher pasta de exportacoes"""
+        pasta_escolhida = filedialog.askdirectory(
+            title="Escolha onde criar a pasta de exportações PLUS",
+            initialdir=self.pasta_exportacoes
+        )
+        
+        if pasta_escolhida:
+            pasta_completa = os.path.join(pasta_escolhida, "exportacoes")
+            if not os.path.exists(pasta_completa):
+                os.makedirs(pasta_completa)
+            
+            self.pasta_exportacoes = pasta_completa
+            self.salvar_configuracao_exportacoes_plus(pasta_completa)
+            
+            messagebox.showinfo("Sucesso", 
+                f"Pasta de exportações PLUS configurada em:\n{pasta_completa}\n\n"
+                "Todas as exportações serão salvas automaticamente aqui.")
     
     def criar_interface_plus(self):
         # Frame superior - Estatísticas PLUS
@@ -474,7 +524,11 @@ class SistemaPlanilhasPlus:
                  bg='#8e44ad', fg='white', font=('Arial', 12), width=20, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="📈 Estatísticas", command=self.mostrar_estatisticas_detalhadas,
+        tk.Button(frame_export, text="� Pasta Exportações", command=self.escolher_pasta_exportacoes_plus,
+                 bg='#3498db', fg='white', font=('Arial', 12), width=20, height=1,
+                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
+        
+        tk.Button(frame_export, text="� Estatísticas", command=self.mostrar_estatisticas_detalhadas,
                  bg='#2ecc71', fg='white', font=('Arial', 12)).pack(side='left', padx=5)
         
         self.label_resultados_plus = tk.Label(frame_export, text="0 resultados", bg='#34495e', 
@@ -623,8 +677,12 @@ class SistemaPlanilhasPlus:
             messagebox.showwarning("Aviso", "Sem resultados para exportar!")
             return
         
+        # Criar pasta exportacoes automaticamente
+        if not os.path.exists(self.pasta_exportacoes):
+            os.makedirs(self.pasta_exportacoes)
+        
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        arquivo = f"resultados_plus_{timestamp}.csv"
+        arquivo = os.path.join(self.pasta_exportacoes, f"resultados_plus_{timestamp}.csv")
         
         # Exportar com TODAS as 39 colunas
         colunas_completas = ['Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']

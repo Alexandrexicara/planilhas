@@ -33,10 +33,6 @@ def criar_banco():
     """Cria o banco de dados SQLite com 36 colunas exatas do Excel + 64 colunas vazias"""
     cursor = get_cursor()
     
-    # Apagar tabela antiga se existir
-    cursor.execute("DROP TABLE IF EXISTS produtos")
-    cursor.execute("DROP TABLE IF EXISTS importacoes")
-    
     # Colunas exatas do Excel (36 colunas)
     colunas_excel = [
         "PICTURE",
@@ -87,7 +83,7 @@ def criar_banco():
     colunas_sql = ', '.join([f'"{col}" TEXT DEFAULT ""' for col in todas_colunas])
     
     cursor.execute(f"""
-        CREATE TABLE produtos (
+        CREATE TABLE IF NOT EXISTS produtos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente TEXT NOT NULL,
             arquivo_origem TEXT NOT NULL,
@@ -97,7 +93,7 @@ def criar_banco():
     """)
     
     cursor.execute("""
-        CREATE TABLE importacoes (
+        CREATE TABLE IF NOT EXISTS importacoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente TEXT NOT NULL,
             arquivo TEXT NOT NULL,
@@ -107,7 +103,7 @@ def criar_banco():
     """)
     
     get_connection().commit()
-    print(f"✅ Banco criado com {len(todas_colunas)} colunas ({len(colunas_excel)} do Excel + {len(colunas_vazias)} vazias)")
+    print(f"✅ Banco criado/verificado com {len(todas_colunas)} colunas ({len(colunas_excel)} do Excel + {len(colunas_vazias)} vazias)")
 
 def get_cursor():
     """Obtém cursor thread-safe"""
@@ -690,22 +686,30 @@ def contar_importacoes():
 # FUNÇÕES DE EXPORTAÇÃO
 # ==============================
 
-def exportar_resultados(resultados, formato='excel'):
+def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None):
     """Exporta resultados da busca (versão sem pandas)"""
     if not resultados:
         return None
     
+    # Usar pasta configurada ou pasta padrao
+    if pasta_exportacoes is None:
+        pasta_exportacoes = "exportacoes"
+    
+    # Criar pasta exportacoes automaticamente
+    if not os.path.exists(pasta_exportacoes):
+        os.makedirs(pasta_exportacoes)
+    
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
     if formato == 'excel':
-        arquivo = f"resultados_busca_{timestamp}.csv"  # CSV como fallback
+        arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")  # CSV como fallback
         with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
             writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
             writer.writerows(resultados)
         return arquivo
     elif formato == 'csv':
-        arquivo = f"resultados_busca_{timestamp}.csv"
+        arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")
         with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
             writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
@@ -728,10 +732,66 @@ class SistemaPlanilhas:
         # Variáveis
         self.termo_busca = tk.StringVar()
         self.cliente_selecionado = tk.StringVar(value="Todos")
+        self.pasta_exportacoes = self.carregar_configuracao_exportacoes()
         
         self.criar_interface()
         self.atualizar_estatisticas()
         self.atualizar_lista_clientes()
+    
+    def carregar_configuracao_exportacoes(self):
+        """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
+        arquivo_config = "config_exportacoes.json"
+        if os.path.exists(arquivo_config):
+            try:
+                with open(arquivo_config, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    pasta = config.get('pasta_exportacoes', 'exportacoes')
+                    # Se a pasta configurada existe, retorna ela
+                    if os.path.exists(pasta):
+                        return pasta
+                    # Senao, cria a pasta padrao
+                    if not os.path.exists('exportacoes'):
+                        os.makedirs('exportacoes')
+                    return 'exportacoes'
+            except Exception as e:
+                print(f"DEBUG: Erro ao carregar configuracao: {e}")
+        
+        # Padrao: criar pasta exportacoes local
+        if not os.path.exists('exportacoes'):
+            os.makedirs('exportacoes')
+        return 'exportacoes'
+    
+    def salvar_configuracao_exportacoes(self, pasta):
+        """Salva a configuracao da pasta exportacoes em um arquivo JSON"""
+        arquivo_config = "config_exportacoes.json"
+        try:
+            with open(arquivo_config, 'w', encoding='utf-8') as f:
+                json.dump({'pasta_exportacoes': pasta}, f, indent=4)
+            print(f"DEBUG: Configuracao salva: {pasta}")
+        except Exception as e:
+            print(f"DEBUG: Erro ao salvar configuracao: {e}")
+    
+    def escolher_pasta_exportacoes(self):
+        """Abre dialogo para escolher pasta de exportacoes"""
+        from tkinter import filedialog, messagebox
+        
+        pasta_escolhida = filedialog.askdirectory(
+            title="Escolha onde criar a pasta de exportações",
+            initialdir=self.pasta_exportacoes
+        )
+        
+        if pasta_escolhida:
+            # Criar pasta exportacoes dentro do local escolhido
+            pasta_completa = os.path.join(pasta_escolhida, "exportacoes")
+            if not os.path.exists(pasta_completa):
+                os.makedirs(pasta_completa)
+            
+            self.pasta_exportacoes = pasta_completa
+            self.salvar_configuracao_exportacoes(pasta_completa)
+            
+            messagebox.showinfo("Sucesso", 
+                f"Pasta de exportações configurada em:\n{pasta_completa}\n\n"
+                "Todas as exportações serão salvas automaticamente aqui.")
     
     def criar_interface(self):
         # Frame superior - Estatísticas
@@ -886,8 +946,8 @@ class SistemaPlanilhas:
                  bg='#16a085', fg='white', font=('Arial', 10, 'bold'), width=15, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="📸 Upload Imagens", command=self.abrir_upload_imagens,
-                 bg='#e74c3c', fg='white', font=('Arial', 10, 'bold'), width=15, height=1,
+        tk.Button(frame_export, text="📁 Pasta Exportações", command=self.escolher_pasta_exportacoes,
+                 bg='#3498db', fg='white', font=('Arial', 10, 'bold'), width=18, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
         tk.Button(frame_export, text="🖼️ Ver Foto", command=self.ver_foto,
@@ -1096,24 +1156,13 @@ class SistemaPlanilhas:
             messagebox.showwarning("Aviso", "Não há resultados para exportar!")
             return
         
-        arquivo = exportar_resultados(resultados, 'excel')
+        arquivo = exportar_resultados(resultados, 'excel', self.pasta_exportacoes)
         if arquivo:
             messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
             self.status_bar.config(text=f"Exportado para {arquivo}")
     
         
-    def abrir_upload_imagens(self):
-        """Abre a janela de upload de imagens"""
-        try:
-            import subprocess
-            import sys
-            
-            # Executar o módulo de upload
-            subprocess.Popen([sys.executable, 'upload_imagens.py'])
-            
-        except Exception as e:
-            messagebox.showerror("Erro", f"Erro ao abrir upload de imagens: {e}")
-    
+        
     def ver_foto(self):
         """Abre janela para visualizar foto do produto selecionado"""
         selecionado = self.tabela.selection()
@@ -1253,7 +1302,7 @@ class SistemaPlanilhas:
             messagebox.showwarning("Aviso", "Não há resultados para exportar!")
             return
         
-        arquivo = exportar_resultados(resultados, 'csv')
+        arquivo = exportar_resultados(resultados, 'csv', self.pasta_exportacoes)
         if arquivo:
             messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
             self.status_bar.config(text=f"Exportado para {arquivo}")
@@ -1726,8 +1775,8 @@ class SistemaPlanilhas:
 # ==============================
 
 if __name__ == "__main__":
-    # Limpar banco e reimportar
-    limpar_banco_dados()
+    # NÃO limpar banco - acumular planilhas
+    # limpar_banco_dados()
     
     app = SistemaPlanilhas()
     app.executar()
