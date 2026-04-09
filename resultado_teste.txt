@@ -1,0 +1,6 @@
+ERRO: [WinError 32] O arquivo já está sendo usado por outro processo: 'banco.db'
+Traceback (most recent call last):
+  File "E:\planilhas.com\teste_captura.py", line 11, in <module>
+    os.remove('banco.db')
+    ~~~~~~~~~^^^^^^^^^^^^
+PermissionError: [WinError 32] O arquivo já está sendo usado por outro processo: 'banco.db'

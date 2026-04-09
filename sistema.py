@@ -30,54 +30,69 @@ def get_connection():
     return conn_local.conn
 
 def criar_banco():
-    """Cria o banco de dados SQLite com todas as colunas"""
+    """Cria o banco de dados SQLite com 36 colunas exatas do Excel + 64 colunas vazias"""
     cursor = get_cursor()
     
     # Apagar tabela antiga se existir
     cursor.execute("DROP TABLE IF EXISTS produtos")
     cursor.execute("DROP TABLE IF EXISTS importacoes")
     
-    cursor.execute("""
+    # Colunas exatas do Excel (36 colunas)
+    colunas_excel = [
+        "PICTURE",
+        "DOC",
+        "REV",
+        "ITEM",
+        "CODE",
+        "QUANTITY",
+        "UM",
+        "CCY",
+        "UNIT PRICE UMO",
+        "TOTAL AMOUNT UMO",
+        "DESCRIÇÃO PORTUGUES (DESCRIPTION PORTUGUESE)",
+        "MARCA (BRAND)",
+        "INNER QUANTITY",
+        "MASTER QUANTITY", 
+        "TOTAL CTNS",
+        "TOTAL NET WEIGHT( kg )",
+        "TOTAL GROSS WEIGHT( kg )",
+        "NET WEIGHT / PC( g )",
+        "GROSS WEIGHT / PC( g )",
+        "NET WEIGHT / CTN( kg )",
+        "GROSS WEIGHT / CTN( kg )",
+        "NAME OF FACTORY",
+        "ADDRESS OF FACTORY",
+        "TELEPHONE",
+        "EAN13",
+        "DUN-14 INNER",
+        "DUN-14 MASTER",
+        "LENGTH CTN",
+        "WIDTH CTN",
+        "HEIGHT CTN",
+        "TOTAL CBM",
+        "HS CODE",
+        "PRC/KG",
+        "LI",
+        "OBS",
+        "STATUS DA COMPRA"
+    ]
+    
+    # Criar 64 colunas vazias adicionais com nome _: _37, _38, _39...
+    colunas_vazias = [f"_{i}" for i in range(37, 101)]
+    
+    # Juntar todas as colunas
+    todas_colunas = colunas_excel + colunas_vazias
+    
+    # Criar SQL com aspas para nomes com espaços e caracteres especiais
+    colunas_sql = ', '.join([f'"{col}" TEXT DEFAULT ""' for col in todas_colunas])
+    
+    cursor.execute(f"""
         CREATE TABLE produtos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente TEXT NOT NULL,
             arquivo_origem TEXT NOT NULL,
-            codigo TEXT,
-            descricao TEXT,
-            peso TEXT,
-            valor TEXT,
-            ncm TEXT,
-            doc TEXT,
-            rev TEXT,
-            code TEXT,
-            quantity TEXT,
-            um TEXT,
-            ccy TEXT,
-            total_amount TEXT,
-            marca TEXT,
-            inner_qty TEXT,
-            master_qty TEXT,
-            total_ctns TEXT,
-            gross_weight TEXT,
-            net_weight_pc TEXT,
-            gross_weight_pc TEXT,
-            net_weight_ctn TEXT,
-            gross_weight_ctn TEXT,
-            factory TEXT,
-            address TEXT,
-            telephone TEXT,
-            ean13 TEXT,
-            dun14_inner TEXT,
-            dun14_master TEXT,
-            length TEXT,
-            width TEXT,
-            height TEXT,
-            cbm TEXT,
-            prc_kg TEXT,
-            li TEXT,
-            obs TEXT,
-            status TEXT,
-            data_importacao TEXT NOT NULL
+            data_importacao TEXT NOT NULL,
+            {colunas_sql}
         )
     """)
     
@@ -92,6 +107,7 @@ def criar_banco():
     """)
     
     get_connection().commit()
+    print(f"✅ Banco criado com {len(todas_colunas)} colunas ({len(colunas_excel)} do Excel + {len(colunas_vazias)} vazias)")
 
 def get_cursor():
     """Obtém cursor thread-safe"""
@@ -105,15 +121,14 @@ def get_cursor():
 
 
 def extrair_imagens_excel(caminho_arquivo, cliente):
-    """Extrai imagens de um arquivo Excel e salva automaticamente"""
+    """Extrai imagens de um arquivo Excel e salva com nomes da coluna PICTURE"""
     try:
         from openpyxl import load_workbook
-        from openpyxl.drawing.image import Image
+        from PIL import Image as PILImage
         import zipfile
         import io
-        from PIL import Image as PILImage
         
-        wb = load_workbook(caminho_arquivo)
+        wb = load_workbook(caminho_arquivo, read_only=True)  # Sem data_only para ler nomes
         ws = wb.active
         
         # Criar pasta para o cliente
@@ -121,23 +136,48 @@ def extrair_imagens_excel(caminho_arquivo, cliente):
         if not os.path.exists(pasta_cliente):
             os.makedirs(pasta_cliente)
         
-        # Extrair imagens do arquivo Excel
         imagens_salvas = []
         
         # Método 1: Tentar extrair do ZIP do Excel
         try:
+            print(f"DEBUG: Procurando imagens no ZIP do Excel...")
             with zipfile.ZipFile(caminho_arquivo, 'r') as zip_ref:
                 # Procurar por arquivos de imagem
-                for file in zip_ref.namelist():
-                    if file.startswith('xl/media/') and file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                arquivos_imagem = [f for f in zip_ref.namelist() if f.startswith('xl/media/') and f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+                print(f"DEBUG: Arquivos de imagem encontrados: {len(arquivos_imagem)}")
+                print(f"DEBUG: Nomes dos arquivos: {arquivos_imagem}")
+                
+                # Ler primeira coluna (PICTURE) para obter nomes da linha 1
+                nomes_imagens = []
+                # Primeiro: pegar nome da linha 1
+                linha_1 = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+                if len(linha_1) > 0 and linha_1[0]:
+                    nome_img = str(linha_1[0]).strip()
+                    if nome_img and nome_img != 'None':
+                        nomes_imagens.append(nome_img)
+                
+                # Depois: pegar outros nomes das linhas de dados
+                for row_num in range(3, min(25, ws.max_row + 1)):
+                    row = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
+                    if len(row) > 0 and row[0]:
+                        nome_img = str(row[0]).strip()
+                        if nome_img and nome_img != 'None':
+                            nomes_imagens.append(nome_img)
+                
+                print(f"DEBUG: Nomes da coluna PICTURE: {nomes_imagens[:5]}...")
+                
+                # Salvar imagens com nomes da coluna PICTURE
+                for i, file in enumerate(arquivos_imagem):
+                    if i < len(nomes_imagens):
                         # Extrair dados da imagem
                         image_data = zip_ref.read(file)
                         
                         # Abrir com PIL para converter se necessário
                         img = PILImage.open(io.BytesIO(image_data))
                         
-                        # Salvar como JPG
-                        nome_arquivo = f"imagem_{len(imagens_salvas)+1}.jpg"
+                        # Usar nome da coluna PICTURE
+                        nome_base = nomes_imagens[i].replace('/', '_').replace('\\', '_').replace(' ', '_')
+                        nome_arquivo = f"{nome_base}.jpg"
                         caminho_salvo = os.path.join(pasta_cliente, nome_arquivo)
                         
                         # Converter para RGB se necessário
@@ -154,231 +194,308 @@ def extrair_imagens_excel(caminho_arquivo, cliente):
         # Método 2: Tentar extrair usando openpyxl
         try:
             if hasattr(ws, '_images'):
+                # Ler nomes da coluna PICTURE
+                nomes_imagens = []
+                # Primeiro: pegar nome da linha 1
+                linha_1 = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+                if len(linha_1) > 0 and linha_1[0]:
+                    nome_img = str(linha_1[0]).strip()
+                    if nome_img and nome_img != 'None':
+                        nomes_imagens.append(nome_img)
+                
+                # Depois: pegar outros nomes das linhas de dados
+                for row_num in range(3, min(25, ws.max_row + 1)):
+                    row = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
+                    if len(row) > 0 and row[0]:
+                        nome_img = str(row[0]).strip()
+                        if nome_img and nome_img != 'None':
+                            nomes_imagens.append(nome_img)
+                
                 for i, img in enumerate(ws._images):
-                    nome_arquivo = f"imagem_{len(imagens_salvas)+1}.jpg"
-                    caminho_salvo = os.path.join(pasta_cliente, nome_arquivo)
-                    
-                    # Salvar imagem
-                    img.save(caminho_salvo)
-                    imagens_salvas.append(nome_arquivo)
-                    print(f"DEBUG: Imagem salva via openpyxl: {caminho_salvo}")
+                    if i < len(nomes_imagens):
+                        nome_base = nomes_imagens[i].replace('/', '_').replace('\\', '_').replace(' ', '_')
+                        nome_arquivo = f"{nome_base}.jpg"
+                        caminho_salvo = os.path.join(pasta_cliente, nome_arquivo)
+                        
+                        # Salvar imagem
+                        img.save(caminho_salvo)
+                        imagens_salvas.append(nome_arquivo)
+                        print(f"DEBUG: Imagem salva via openpyxl: {caminho_salvo}")
         except Exception as e:
             print(f"DEBUG: Erro ao extrair imagens com openpyxl: {e}")
         
+        print(f"DEBUG: Total de imagens extraídas: {len(imagens_salvas)}")
+        print(f"DEBUG: Imagens salvas: {imagens_salvas}")
         return imagens_salvas
         
     except Exception as e:
         print(f"DEBUG: Erro geral ao extrair imagens: {e}")
         return []
 
+def buscar_imagens_externas(caminho_arquivo, cliente):
+    """Busca automaticamente imagens em pasta externa com mesmo nome do Excel"""
+    try:
+        from PIL import Image as PILImage
+        
+        # Obter pasta do arquivo Excel
+        pasta_excel = os.path.dirname(caminho_arquivo)
+        nome_base = os.path.basename(caminho_arquivo).replace('.xlsx', '').replace('.xls', '')
+        
+        # Possíveis nomes de pastas de imagens
+        pastas_buscar = [
+            nome_base,  # Mesmo nome do Excel
+            f"{nome_base}_imagens",  # Nome + _imagens
+            f"{nome_base}_images",  # Nome + _images
+            f"{nome_base}_fotos",  # Nome + _fotos
+            "imagens",  # Pasta genérica imagens
+            "images",  # Pasta genérica images
+            "fotos",  # Pasta genérica fotos
+        ]
+        
+        imagens_encontradas = []
+        
+        for pasta_buscar in pastas_buscar:
+            pasta_completa = os.path.join(pasta_excel, pasta_buscar)
+            
+            if os.path.exists(pasta_completa):
+                print(f"DEBUG: Pasta encontrada: {pasta_completa}")
+                
+                # Listar arquivos de imagem
+                arquivos_imagem = []
+                for ext in ['*.jpg', '*.jpeg', '*.png', '*.gif', '*.bmp', '*.tiff']:
+                    arquivos_imagem.extend(os.path.join(pasta_completa, f) for f in os.listdir(pasta_completa) if f.lower().endswith(ext.replace('*.', '.')))
+                
+                if arquivos_imagem:
+                    # Criar pasta do cliente se não existir
+                    pasta_cliente = os.path.join("imagens", cliente)
+                    if not os.path.exists(pasta_cliente):
+                        os.makedirs(pasta_cliente)
+                    
+                    # Ler códigos do Excel
+                    from openpyxl import load_workbook
+                    wb = load_workbook(caminho_arquivo, read_only=True)
+                    ws = wb.active
+                    
+                    codigos = []
+                    for row_num in range(3, min(25, ws.max_row + 1)):
+                        row = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
+                        if len(row) >= 5 and row[4]:
+                            codigos.append(str(row[4]).strip())
+                    
+                    wb.close()
+                    
+                    # Associar imagens aos códigos (por ordem)
+                    for i, img_path in enumerate(arquivos_imagem[:len(codigos)]):
+                        if i < len(codigos):
+                            codigo = codigos[i]
+                            
+                            # Converter para JPG se necessário
+                            try:
+                                img = PILImage.open(img_path)
+                                if img.mode in ('RGBA', 'LA', 'P'):
+                                    img = img.convert('RGB')
+                                
+                                # Salvar com nome do código
+                                novo_caminho = os.path.join(pasta_cliente, f"{codigo}.jpg")
+                                img.save(novo_caminho, 'JPEG', quality=85)
+                                
+                                imagens_encontradas.append(f"{codigo}.jpg")
+                                print(f"DEBUG: Imagem salva: {novo_caminho}")
+                                
+                            except Exception as e:
+                                print(f"DEBUG: Erro ao processar imagem {img_path}: {e}")
+                    
+                    return imagens_encontradas
+        
+        print(f"DEBUG: Nenhuma pasta de imagens encontrada para: {pastas_buscar}")
+        return []
+        
+    except Exception as e:
+        print(f"DEBUG: Erro ao buscar imagens externas: {e}")
+        return []
+
 def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
-    """Importa uma única planilha (versão thread-safe)"""
+    """Importa uma única planilha (versão simplificada e funcional)"""
     if not cliente:
         cliente = os.path.basename(caminho_arquivo).replace('.xlsx', '').replace('.xls', '')
     
     try:
-        # Tentar importar openpyxl
-        try:
-            from openpyxl import load_workbook
-        except ImportError:
-            print("ERRO: openpyxl não está instalado. Execute: pip install openpyxl")
-            return 0
+        from openpyxl import load_workbook
         
         wb = load_workbook(caminho_arquivo, read_only=True)
         ws = wb.active
         
-        # Detectar colunas automaticamente
+        # Detectar colunas automaticamente - procurar linha com mais células preenchidas
         cabecalhos = []
-        primeira_linha = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        linha_cabecalho = 1
+        max_celulas = 0
         
-        # Se só tiver uma célula na primeira linha, tenta encontrar cabeçalhos em outras linhas
-        if len([c for c in primeira_linha if c]) == 1:
-            # Tenta encontrar cabeçalhos nas primeiras 5 linhas
-            for row_num in range(1, min(6, ws.max_row + 1)):
-                linha = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
-                if len([c for c in linha if c]) > 1:  # Se tiver mais de uma célula preenchida
-                    for cell in linha:
-                        if cell:
-                            cabecalhos.append(str(cell).strip())
-                    break
-        else:
-            # Usa a primeira linha como cabeçalho
-            for cell in primeira_linha:
-                if cell:
-                    cabecalhos.append(str(cell).strip())
+        # Procurar nas primeiras 20 linhas pela linha com mais colunas (provavelmente cabeçalhos)
+        for row_num in range(2, min(21, ws.max_row + 1)):  # Começar da linha 2
+            linha = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
+            celulas_preenchidas = [c for c in linha if c and str(c).strip()]
+            
+            # Se esta linha tem mais células preenchidas que a anterior, use-a
+            if len(celulas_preenchidas) > max_celulas:
+                max_celulas = len(celulas_preenchidas)
+                cabecalhos = [str(c).strip() for c in linha if c and str(c).strip()]
+                linha_cabecalho = row_num
+                
+        print(f"DEBUG: Cabeçalhos encontrados na linha {linha_cabecalho}: {len(cabecalhos)} colunas")
+        print(f"DEBUG: Primeiros cabeçalhos: {cabecalhos[:10]}")
         
-        print(f"DEBUG: Cabeçalhos encontrados: {cabecalhos}")
+        # DEBUG: Colunas já criadas no criar_banco(), não precisa criar dinamicamente
+        # preparar_colunas_extras(cabecalhos)
         
-        # Encontrar índice da coluna PICTURE
-        picture_col_index = None
-        for i, cabecalho in enumerate(cabecalhos):
-            if 'PICTURE' in cabecalho.upper():
-                picture_col_index = i
-                break
-        
-        # Se não encontrou colunas padrão, assume posições fixas
-        if len(cabecalhos) == 0:
-            cabecalhos = ['codigo', 'descricao', 'peso', 'valor', 'ncm']
-        
-        colunas_detectadas = detectar_colunas_excel(cabecalhos)
-        print(f"DEBUG: Colunas detectadas: {colunas_detectadas}")
-        
-        # Preparar colunas extras dinâmicas (suporte a 100+ colunas)
-        preparar_colunas_extras(cabecalhos)
-        
-        # Obter colunas atualizadas do banco após adicionar extras
+        # Obter colunas do banco APÓS criar as dinâmicas
         colunas_banco = get_colunas_banco()
-        print(f"DEBUG: Total de colunas no banco: {len(colunas_banco)}")
+        print(f"DEBUG: Colunas no banco: {list(colunas_banco.keys())}")
         
-        # Criar mapeamento de índice do Excel para nome da coluna no banco
-        mapeamento_excel_banco = {}
+        # Criar mapeamento: índice do Excel -> nome da coluna no banco
+        # Usar nomes exatos das colunas do banco (maiúsculos)
+        mapeamento = {}
+        colunas_banco_list = list(colunas_banco.keys())
+        colunas_nao_mapeadas = []
+        
         for i, cab in enumerate(cabecalhos):
-            nome_norm = normalizar_nome_coluna(cab)
-            if nome_norm and nome_norm in colunas_banco:
-                mapeamento_excel_banco[i] = nome_norm
+            # Procurar coluna no banco com nome exato (case-sensitive)
+            if cab in colunas_banco_list:
+                mapeamento[i] = cab
+                print(f"✅ Coluna {i}: '{cab}' -> MAPEADA")
+            else:
+                # Tentar encontrar com normalização (fallback)
+                nome_norm = normalizar_nome_coluna(cab)
+                if nome_norm and nome_norm in colunas_banco:
+                    mapeamento[i] = nome_norm
+                    print(f"✅ Coluna {i}: '{cab}' -> MAPEADA (normalizado: '{nome_norm}')")
+                else:
+                    colunas_nao_mapeadas.append((i, cab))
+                    print(f"❌ Coluna {i}: '{cab}' -> NÃO MAPEADA (não encontrada no banco)")
         
-        # Se não detectou colunas, mapeia por posição
-        if not colunas_detectadas and len(cabecalhos) >= 5:
-            colunas_detectadas = {
-                'codigo': cabecalhos[0] if len(cabecalhos) > 0 else '',
-                'descricao': cabecalhos[1] if len(cabecalhos) > 1 else '',
-                'peso': cabecalhos[2] if len(cabecalhos) > 2 else '',
-                'valor': cabecalhos[3] if len(cabecalhos) > 3 else '',
-                'ncm': cabecalhos[4] if len(cabecalhos) > 4 else ''
-            }
-            print(f"DEBUG: Colunas mapeadas por posição: {colunas_detectadas}")
+        print(f"\n=== RESUMO DO MAPEAMENTO ===")
+        print(f"✅ Total mapeadas: {len(mapeamento)}")
+        print(f"❌ Total não mapeadas: {len(colunas_nao_mapeadas)}")
+        if colunas_nao_mapeadas:
+            print(f"❌ Colunas não mapeadas: {colunas_nao_mapeadas}")
+        print(f"============================\n")
         
-        # Construir SQL dinâmico baseado nas colunas do banco
+        # Extrair imagens do Excel
+        print(f"DEBUG: Extraindo imagens do arquivo: {caminho_arquivo}")
+        imagens_salvas = extrair_imagens_excel(caminho_arquivo, cliente)
+        print(f"DEBUG: Imagens extraídas: {len(imagens_salvas)}")
+        if imagens_salvas:
+            print(f"DEBUG: Nomes das imagens: {imagens_salvas[:5]}...")
+        else:
+            print(f"DEBUG: Nenhuma imagem encontrada no arquivo")
+            
+            # Buscar automática de imagens em pasta externa
+            print(f"DEBUG: Buscando imagens em pasta externa...")
+            imagens_externas = buscar_imagens_externas(caminho_arquivo, cliente)
+            if imagens_externas:
+                print(f"DEBUG: Encontradas {len(imagens_externas)} imagens externas")
+                imagens_salvas = imagens_externas
+            else:
+                print(f"DEBUG: Nenhuma imagem externa encontrada")
+        print(f"DEBUG: Total colunas banco: {len(colunas_banco)}")
+        print(f"DEBUG: Colunas banco: {list(colunas_banco.keys())[:10]}")
+        
+        # Dados para insert
         colunas_insert = [c for c in colunas_banco.keys() if c != 'id']
-        sql_colunas = ', '.join(colunas_insert)
+        sql_colunas = ', '.join([f'"{c}"' for c in colunas_insert])
         sql_valores = ', '.join(['?' for _ in colunas_insert])
         sql_insert = f"INSERT INTO produtos ({sql_colunas}) VALUES ({sql_valores})"
         
-        total_importados = 0
         data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Extrair imagens automaticamente
-        print(f"DEBUG: Extraindo imagens de {caminho_arquivo}")
-        imagens_salvas = extrair_imagens_excel(caminho_arquivo, cliente)
-        print(f"DEBUG: {len(imagens_salvas)} imagens extraídas")
-        
-        # Batch insert para maior performance
-        batch_size = 1000
+        total_importados = 0
         dados_batch = []
+        batch_size = 500
         
-        # Obter conexão e cursor thread-safe
         conn_thread = get_connection()
         cursor_thread = get_cursor()
         
-        # Pular linha de cabeçalho e começar da linha 2
-        for row in ws.iter_rows(min_row=2, values_only=True):
+        # Processar dados - ler da linha 3 em diante
+        # Primeiro: ler nome da imagem da linha 1
+        linha_1 = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        nome_imagem_principal = str(linha_1[0]).strip() if len(linha_1) > 0 and linha_1[0] else ''
+        
+        for row in ws.iter_rows(min_row=linha_cabecalho+1, values_only=True):
             # Pular linhas vazias
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
             
-            # Preparar dicionário de valores para cada coluna do banco
-            valores_dict = {}
-            
-            # Preencher valores mapeados do Excel
+            # Criar dicionário de valores
+            valores = {}
             for i, cell in enumerate(row):
-                if i in mapeamento_excel_banco:
-                    coluna_banco = mapeamento_excel_banco[i]
-                    valores_dict[coluna_banco] = str(cell).strip() if cell is not None else ''
+                if i in mapeamento:
+                    col_name = mapeamento[i]
+                    # Se for a coluna PICTURE (índice 0), usar nome da linha 1
+                    if col_name == 'PICTURE':
+                        valores[col_name] = nome_imagem_principal
+                    else:
+                        valores[col_name] = str(cell).strip() if cell is not None else ''
             
-            # Adicionar campos obrigatórios
-            valores_dict['cliente'] = cliente
-            valores_dict['arquivo_origem'] = os.path.basename(caminho_arquivo)
-            valores_dict['data_importacao'] = data_atual
+            # Adicionar campos fixos
+            valores['cliente'] = cliente
+            valores['arquivo_origem'] = os.path.basename(caminho_arquivo)
+            valores['data_importacao'] = data_atual
             
-            # Criar tupla na ordem das colunas do INSERT
-            valores_tupla = tuple(valores_dict.get(c, '') for c in colunas_insert)
-            dados_batch.append(valores_tupla)
+            # Criar tupla na ordem correta
+            tupla = tuple(valores.get(c, '') for c in colunas_insert)
+            dados_batch.append(tupla)
             
-            # Debug primeira linha
+            # Debug primeira linha - MOSTRAR TUDO
             if total_importados == 0:
-                print(f"DEBUG: Primeira linha - valores: {valores_tupla[:10]}...")
+                print(f"DEBUG: === PRIMEIRA LINHA ===")
+                print(f"DEBUG: Valores dict: {dict(list(valores.items())[:10])}")
+                print(f"DEBUG: Tupla completa: {tupla}")
+                print(f"DEBUG: Primeiros 10 valores: {tupla[:10]}")
             
-            # Insert em batch
+            total_importados += 1
+            
+            # Batch insert
             if len(dados_batch) >= batch_size:
-                cursor_thread.executemany(sql_insert, dados_batch)
-                conn_thread.commit()
-                total_importados += len(dados_batch)
+                try:
+                    cursor_thread.executemany(sql_insert, dados_batch)
+                    conn_thread.commit()
+                    print(f"DEBUG: Inseridos {len(dados_batch)} registros")
+                except Exception as e:
+                    print(f"DEBUG: ERRO no batch insert: {e}")
                 dados_batch = []
-                
-                if progress_callback and total_importados % 5000 == 0:
-                    progress_callback(f"Importados: {total_importados:,}")
         
-        # Insert final do batch restante
+        # Inserir restante
         if dados_batch:
             cursor_thread.executemany(sql_insert, dados_batch)
             conn_thread.commit()
-            total_importados += len(dados_batch)
         
         wb.close()
         
         # Registrar importação
-        cursor_thread.execute("""
-            INSERT INTO importacoes (cliente, arquivo, data_importacao, total_registros)
-            VALUES (?, ?, ?, ?)
-        """, (cliente, os.path.basename(caminho_arquivo), data_atual, total_importados))
+        cursor_thread.execute(
+            "INSERT INTO importacoes (cliente, arquivo, data_importacao, total_registros) VALUES (?, ?, ?, ?)",
+            (cliente, os.path.basename(caminho_arquivo), data_atual, total_importados)
+        )
         conn_thread.commit()
         
+        print(f"DEBUG: Importados {total_importados} produtos")
         return total_importados
         
     except Exception as e:
-        print(f"Erro ao importar {caminho_arquivo}: {str(e)}")
+        print(f"ERRO ao importar {caminho_arquivo}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return 0
 
 def detectar_colunas_excel(cabecalhos):
-    """Detecta colunas em planilha Excel"""
-    colunas_detectadas = {}
+    """Retorna os nomes das colunas normalizados (sem mapeamento fixo)"""
+    colunas_normalizadas = {}
     
-    # Mapeamento completo para todas as colunas
-    mapeamento = {
-        'codigo': ['ITEM'],
-        'descricao': ['DESCRIÇÃO PORTUGUES (DESCRIPTION PORTUGUESE)'],
-        'peso': ['TOTAL NET WEIGHT( kg )'],
-        'valor': ['UNIT PRICE UMO'],
-        'ncm': ['CODE'],
-        'doc': ['DOC'],
-        'rev': ['REV'],
-        'quantity': ['QUANTITY'],
-        'um': ['UM'],
-        'ccy': ['CCY'],
-        'total_amount': ['TOTAL AMOUNT UMO'],
-        'marca': ['MARCA (BRAND)'],
-        'inner_qty': ['INNER QUANTITY'],
-        'master_qty': ['MASTER QUANTITY'],
-        'total_ctns': ['TOTAL CTNS'],
-        'gross_weight': ['TOTAL GROSS WEIGHT( kg )'],
-        'net_weight_pc': ['NET WEIGHT / PC( g )'],
-        'gross_weight_pc': ['GROSS WEIGHT / PC( g )'],
-        'net_weight_ctn': ['NET WEIGHT / CTN( kg )'],
-        'gross_weight_ctn': ['GROSS WEIGHT / CTN( kg )'],
-        'factory': ['NAME OF FACTORY'],
-        'address': ['ADDRESS OF FACTORY'],
-        'telephone': ['TELEPHONE'],
-        'ean13': ['EAN13'],
-        'dun14_inner': ['DUN-14 INNER'],
-        'dun14_master': ['DUN-14 MASTER'],
-        'length': ['LENGTH CTN'],
-        'width': ['WIDTH CTN'],
-        'height': ['HEIGHT CTN'],
-        'cbm': ['TOTAL CBM'],
-        'prc_kg': ['PRC/KG'],
-        'li': ['LI'],
-        'obs': ['OBS'],
-        'status': ['STATUS DA COMPRA']
-    }
+    for cabecalho in cabecalhos:
+        if cabecalho:
+            nome_norm = normalizar_nome_coluna(cabecalho)
+            if nome_norm:
+                colunas_normalizadas[nome_norm] = cabecalho
     
-    # Primeiro tenta mapeamento exato
-    for col_padrao, alternativas in mapeamento.items():
-        for cabecalho in cabecalhos:
-            if cabecalho in alternativas:
-                colunas_detectadas[col_padrao] = cabecalho
-                break
-    
-    return colunas_detectadas
+    return colunas_normalizadas
 
 def get_colunas_banco():
     """Obtém lista EXATA de colunas do banco"""
@@ -394,15 +511,20 @@ def get_colunas_banco():
     return colunas
 
 def normalizar_nome_coluna(nome):
-    """Normaliza nome da coluna para ser válido no SQLite"""
+    """Normaliza nome da coluna para ser válido no SQLite (não pode começar com número)"""
     if not nome:
         return None
     import re
-    nome = str(nome).strip().lower()
+    nome = str(nome).strip()
+    # Substituir caracteres especiais por underscore
     nome = re.sub(r'[^\w\s]', '_', nome)
     nome = re.sub(r'\s+', '_', nome)
     nome = re.sub(r'_+', '_', nome)
     nome = nome.strip('_')
+    
+    # NÃO pode começar com número no SQLite - adicionar prefixo
+    if nome and nome[0].isdigit():
+        nome = 'col_' + nome
     
     if len(nome) > 50:
         nome = nome[:50]
@@ -417,9 +539,9 @@ def adicionar_coluna_dinamica(nome_coluna, tipo='TEXT'):
         if nome_coluna in colunas:
             return True
         
-        # Limite de 100 colunas
-        if len(colunas) >= 100:
-            print(f"⚠️ Limite de 100 colunas atingido")
+        # Limite de 200 colunas
+        if len(colunas) >= 200:
+            print(f"⚠️ Limite de 200 colunas atingido")
             return False
         
         cursor_temp = get_cursor()
@@ -433,17 +555,22 @@ def adicionar_coluna_dinamica(nome_coluna, tipo='TEXT'):
         return False
 
 def preparar_colunas_extras(cabecalhos_excel):
-    """Prepara o banco para receber todas as colunas do Excel"""
+    """Prepara o banco para receber todas as colunas do Excel (exceto picture/imagem)"""
     print(f"\n🔧 Preparando colunas dinâmicas...")
     
     colunas_banco = get_colunas_banco()
     colunas_adicionadas = 0
     
+    # Colunas que NÃO devem ser criadas (sistema já extrai imagens separadamente)
+    colunas_excluir = []
+    
     for cab in cabecalhos_excel:
         nome_norm = normalizar_nome_coluna(cab)
+        # Não criar colunas de imagem no banco (sistema já extrai automaticamente)
         if nome_norm and nome_norm not in colunas_banco:
-            if adicionar_coluna_dinamica(nome_norm, 'TEXT'):
-                colunas_adicionadas += 1
+            if nome_norm not in colunas_excluir:
+                if adicionar_coluna_dinamica(nome_norm, 'TEXT'):
+                    colunas_adicionadas += 1
     
     if colunas_adicionadas > 0:
         print(f"✅ {colunas_adicionadas} colunas extras adicionadas")
@@ -498,44 +625,41 @@ def importar_arquivos_selecionados(arquivos, progress_callback=None):
 # ==============================
 
 def buscar_produtos(termo='', cliente='Todos'):
-    """Busca produtos no banco de dados"""
-    query = """SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev, quantity, um, ccy, total_amount, marca, inner_qty, master_qty, total_ctns, gross_weight, net_weight_pc, gross_weight_pc, net_weight_ctn, gross_weight_ctn, factory, address, telephone, ean13, dun14_inner, dun14_master, length, width, height, cbm, prc_kg, li, obs, status FROM produtos WHERE 1=1"""
+    """Busca produtos no banco de dados - versão totalmente dinâmica"""
+    # Obter colunas dinâmicas do banco
+    colunas_banco = get_colunas_banco()
+    colunas_select = [c for c in colunas_banco.keys() if c != 'id']
+    
+    # Construir query dinâmica com TODAS as colunas
+    colunas_banco = get_colunas_banco()
+    colunas_select = [c for c in colunas_banco.keys() if c != 'id']
+    sql_colunas = ', '.join([f'"{c}"' for c in colunas_select])
+    query = f"SELECT {sql_colunas} FROM produtos WHERE 1=1"
     params = []
     
     if termo and termo != '*':
-        query += " AND (codigo LIKE ? OR descricao LIKE ? OR ncm LIKE ?)"
-        params.extend([f'%{termo}%', f'%{termo}%', f'%{termo}%'])
+        # Buscar em todas as colunas de texto
+        search_cols = [c for c in colunas_select if c not in ['id']]
+        if search_cols:
+            conditions = ' OR '.join([f'"{c}" LIKE ?' for c in search_cols])
+            query += f" AND ({conditions})"
+            params.extend([f'%{termo}%'] * len(search_cols))
     
     if cliente and cliente != 'Todos':
         query += " AND cliente = ?"
         params.append(cliente)
     
-    query += " ORDER BY cliente, arquivo, descricao"
+    query += " ORDER BY cliente, arquivo_origem"
     
-    cursor = get_cursor()
-    cursor.execute(query, params)
-    resultados = cursor.fetchall()
+    try:
+        cursor = get_cursor()
+        cursor.execute(query, params)
+        resultados = cursor.fetchall()
+    except Exception as e:
+        print(f"DEBUG: Erro na busca: {e}")
+        return []
     
-    # Adicionar informação de imagem para cada produto
-    resultados_com_imagem = []
-    for resultado in resultados:
-        cliente = resultado[0]
-        codigo = resultado[2]
-        
-        # Procurar imagem na pasta imagens/
-        nome_imagem = f"{codigo}.jpg" if codigo else "default.jpg"
-        caminho_imagem = os.path.join("imagens", cliente, nome_imagem)
-        
-        if os.path.exists(caminho_imagem):
-            status_imagem = "✅ Foto"
-        else:
-            status_imagem = "❌ Sem foto"
-        
-        # Adicionar status da imagem como último campo
-        resultado_com_imagem = resultado + (status_imagem,)
-        resultados_com_imagem.append(resultado_com_imagem)
-    
-    return resultados_com_imagem
+    return resultados
 
 def listar_clientes():
     """Lista todos os clientes únicos (thread-safe)"""
@@ -762,6 +886,10 @@ class SistemaPlanilhas:
                  bg='#16a085', fg='white', font=('Arial', 10, 'bold'), width=15, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
+        tk.Button(frame_export, text="📸 Upload Imagens", command=self.abrir_upload_imagens,
+                 bg='#e74c3c', fg='white', font=('Arial', 10, 'bold'), width=15, height=1,
+                 relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
+        
         tk.Button(frame_export, text="🖼️ Ver Foto", command=self.ver_foto,
                  bg='#e67e22', fg='white', font=('Arial', 10, 'bold'), width=12, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
@@ -773,24 +901,53 @@ class SistemaPlanilhas:
         frame_tabela = tk.Frame(frame_resultados)
         frame_tabela.pack(fill='both', expand=True, padx=5, pady=5)
         
-        self.colunas = ('Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'Imagem', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS')
+        # Obter colunas dinâmicas do banco para a tabela
+        try:
+            colunas_banco = get_colunas_banco()
+            colunas_base = [c for c in colunas_banco.keys() if c != 'id']
+            
+            # Reordenar para IMAGEM ficar ao lado de DESCRICAO
+            colunas_ordenadas = []
+            descricao_idx = -1
+            for i, c in enumerate(colunas_base):
+                if c == 'descricao':
+                    descricao_idx = i
+                    break
+            
+            if descricao_idx >= 0:
+                # Inserir colunas até descricao (inclusive)
+                colunas_ordenadas = colunas_base[:descricao_idx+1]
+                # Adicionar IMAGEM
+                colunas_ordenadas.append('IMAGEM')
+                # Adicionar restante das colunas
+                colunas_ordenadas.extend(colunas_base[descricao_idx+1:])
+            else:
+                colunas_ordenadas = colunas_base + ['IMAGEM']
+            
+            self.colunas = tuple([c.upper() for c in colunas_ordenadas])
+        except Exception as e:
+            # Fallback para colunas padrão com IMAGEM ao lado de DESCRICAO
+            self.colunas = ('CLIENTE', 'ARQUIVO_ORIGEM', 'CODIGO', 'DESCRICAO', 'IMAGEM', 'PESO', 'VALOR', 'NCM')
+        
         self.tabela = ttk.Treeview(frame_tabela, columns=self.colunas, show='headings', height=15)
         
-        # Configurar colunas
+        # Configurar colunas dinamicamente - todas com stretch para mostrar conteudo completo
         for col in self.colunas:
-            self.tabela.heading(col, text=col)
-            if col == 'Descrição':
-                self.tabela.column(col, width=200)
-            elif col == 'Cliente':
-                self.tabela.column(col, width=100)
-            elif col == 'Arquivo':
-                self.tabela.column(col, width=120)
-            elif col in ['Código', 'Peso', 'Valor', 'QUANTITY', 'TOTAL CTNS']:
-                self.tabela.column(col, width=80)
-            elif col == 'Imagem':
-                self.tabela.column(col, width=60)
+            self.tabela.heading(col, text=col.replace('_', ' '))
+            if 'DESCRI' in col:
+                # Descricao bem larga para texto longo
+                self.tabela.column(col, width=800, minwidth=300, stretch=True)
+            elif col == 'CLIENTE':
+                self.tabela.column(col, width=200, minwidth=150, stretch=True)
+            elif col in ('ARQUIVO_ORIGEM',):
+                self.tabela.column(col, width=250, minwidth=150, stretch=True)
+            elif col in ('CODE', 'ITEM'):
+                self.tabela.column(col, width=150, minwidth=100, stretch=True)
+            elif col == 'IMAGEM':
+                self.tabela.column(col, width=80, minwidth=60, stretch=False)
             else:
-                self.tabela.column(col, width=70)
+                # Todas as outras colunas com largura generosa e stretch
+                self.tabela.column(col, width=200, minwidth=120, stretch=True)
         
         # Scrollbars
         scroll_v = ttk.Scrollbar(frame_tabela, orient='vertical', command=self.tabela.yview)
@@ -802,7 +959,9 @@ class SistemaPlanilhas:
         scroll_h.grid(row=1, column=0, sticky='ew')
         
         frame_tabela.grid_rowconfigure(0, weight=1)
+        frame_tabela.grid_rowconfigure(1, weight=0)
         frame_tabela.grid_columnconfigure(0, weight=1)
+        frame_tabela.grid_columnconfigure(1, weight=0)
         
         # Barra de status
         self.status_bar = tk.Label(self.janela, text="Pronto", bd=1, relief='sunken', anchor='w', bg='#ecf0f1')
@@ -942,6 +1101,19 @@ class SistemaPlanilhas:
             messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
             self.status_bar.config(text=f"Exportado para {arquivo}")
     
+        
+    def abrir_upload_imagens(self):
+        """Abre a janela de upload de imagens"""
+        try:
+            import subprocess
+            import sys
+            
+            # Executar o módulo de upload
+            subprocess.Popen([sys.executable, 'upload_imagens.py'])
+            
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao abrir upload de imagens: {e}")
+    
     def ver_foto(self):
         """Abre janela para visualizar foto do produto selecionado"""
         selecionado = self.tabela.selection()
@@ -957,11 +1129,52 @@ class SistemaPlanilhas:
             return
         
         cliente = valores[0]
-        codigo = valores[2]
         
-        # Procurar imagem
-        nome_imagem = f"{codigo}.jpg" if codigo else "default.jpg"
+        # Encontrar índice da coluna PICTURE
+        colunas_banco = list(get_colunas_banco().keys())
+        picture_idx = None
+        for i, col in enumerate(colunas_banco):
+            if col == 'PICTURE':
+                picture_idx = i
+                break
+        
+        if picture_idx is None or picture_idx >= len(valores):
+            messagebox.showwarning("Aviso", "Coluna PICTURE não encontrada.")
+            return
+            
+        picture_valor = valores[picture_idx]
+        
+        # Debug para mostrar PICTURE e caminho
+        print(f"DEBUG: Valor da coluna PICTURE: '{picture_valor}'")
+        print(f"DEBUG: Cliente: '{cliente}'")
+        print(f"DEBUG: Índice PICTURE: {picture_idx}")
+        print(f"DEBUG: Colunas banco: {colunas_banco[:10]}...")
+        
+        # Se PICTURE tiver valor, usar como nome da imagem
+        if picture_valor is not None and picture_valor != '':
+            # Converter para string se for número
+            picture_str = str(picture_valor).strip()
+            if picture_str:
+                nome_imagem = f"{picture_str}.jpg"
+            else:
+                nome_imagem = "default.jpg"
+        else:
+            # Fallback: usar CODE
+            code_idx = None
+            for i, col in enumerate(colunas_banco):
+                if col == 'CODE':
+                    code_idx = i
+                    break
+            if code_idx is not None and code_idx < len(valores):
+                codigo = valores[code_idx]
+                nome_imagem = f"{codigo}.jpg" if codigo else "default.jpg"
+            else:
+                nome_imagem = "default.jpg"
+        
         caminho_imagem = os.path.join("imagens", cliente, nome_imagem)
+        
+        print(f"DEBUG: Caminho da imagem: {caminho_imagem}")
+        print(f"DEBUG: Imagem existe? {os.path.exists(caminho_imagem)}")
         
         # Criar pasta se não existir
         pasta_imagens = os.path.join("imagens", cliente)
@@ -970,7 +1183,7 @@ class SistemaPlanilhas:
         
         # Janela para visualizar imagem
         janela_foto = tk.Toplevel(self.janela)
-        janela_foto.title(f"🖼️ Foto do Produto - {codigo}")
+        janela_foto.title(f"🖼️ Foto do Produto - {nome_imagem.replace('.jpg', '')}")
         janela_foto.geometry("600x500")
         janela_foto.configure(bg='#2c3e50')
         
@@ -979,7 +1192,7 @@ class SistemaPlanilhas:
         frame_principal.pack(fill='both', expand=True, padx=20, pady=20)
         
         # Informações do produto
-        info_text = f"Cliente: {cliente}\nCódigo: {codigo}\nDescrição: {valores[3] if len(valores) > 3 else 'N/A'}"
+        info_text = f"Cliente: {cliente}\nImagem: {nome_imagem}\nDescrição: {valores[3] if len(valores) > 3 else 'N/A'}"
         tk.Label(frame_principal, text=info_text, font=('Arial', 12, 'bold'), 
                 bg='#2c3e50', fg='white', justify='left').pack(pady=(0, 10))
         

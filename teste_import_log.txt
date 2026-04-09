@@ -1,0 +1,26 @@
+=== INICIANDO TESTE ===
+Banco deletado
+
+=== CRIANDO CONEXÃO ===
+
+=== IMPORTANDO ===
+DEBUG: Cabeçalhos: ['000005251 / 01 - Wenmoongucy Int L Ltd']
+
+🔧 Preparando colunas dinâmicas...
+❌ Erro ao criar coluna 000005251_01_wenmoongucy_int_l_ltd: unrecognized token: "000005251_01_wenmoongucy_int_l_ltd"
+DEBUG: Colunas no banco: ['id', 'cliente', 'arquivo_origem', 'data_importacao']
+DEBUG: Mapeamento: {}
+DEBUG: Total cabeçalhos: 1
+DEBUG: Total colunas banco: 4
+DEBUG: Colunas banco: ['id', 'cliente', 'arquivo_origem', 'data_importacao']
+DEBUG: === PRIMEIRA LINHA ===
+DEBUG: Valores dict: {'cliente': 'celio.planilha', 'arquivo_origem': 'celio.planilha.xlsx', 'data_importacao': '2026-04-02 15:47:41'}
+DEBUG: Tupla completa: ('celio.planilha', 'celio.planilha.xlsx', '2026-04-02 15:47:41')
+DEBUG: Primeiros 10 valores: ('celio.planilha', 'celio.planilha.xlsx', '2026-04-02 15:47:41')
+DEBUG: Importados 22 produtos
+
+=== RESULTADO: 22 ===
+
+=== VERIFICANDO DADOS ===
+Total no banco: 22
+Primeira linha: (1, 'celio.planilha', 'celio.planilha.xlsx', '2026-04-02 15:47:41')
