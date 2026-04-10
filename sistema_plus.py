@@ -13,16 +13,31 @@ from PIL import Image, ImageTk
 # BANCO DE DADOS - VERSÃO PLUS
 # ==============================
 
-def inicializar_banco_plus():
-    """Banco otimizado para cliente final (sem WAL)"""
-    conn = sqlite3.connect("banco_plus.db")
-    cursor = conn.cursor()
+# Thread-local storage para conexões thread-safe
+conn_local_plus = threading.local()
+cursor_local_plus = threading.local()
+
+def get_connection_plus():
+    """Obtém conexão thread-safe para banco PLUS"""
+    if not hasattr(conn_local_plus, 'conn'):
+        conn_local_plus.conn = sqlite3.connect("banco_plus.db")
+        conn_local_plus.conn.execute("PRAGMA journal_mode=DELETE")
+        conn_local_plus.conn.execute("PRAGMA synchronous=FULL")
+        conn_local_plus.conn.execute("PRAGMA cache_size=25000")
+        conn_local_plus.conn.execute("PRAGMA temp_store=FILE")
+        criar_banco_plus()
     
-    # Configurações para cliente final (sem WAL)
-    cursor.execute("PRAGMA journal_mode=DELETE")  # Sem WAL, mais limpo
-    cursor.execute("PRAGMA synchronous=FULL")     # Máxima segurança
-    cursor.execute("PRAGMA cache_size=25000")      # Cache médio
-    cursor.execute("PRAGMA temp_store=FILE")       # Temp em arquivo
+    return conn_local_plus.conn
+
+def get_cursor_plus():
+    """Obtém cursor thread-safe para banco PLUS"""
+    if not hasattr(cursor_local_plus, 'cursor'):
+        cursor_local_plus.cursor = get_connection_plus().cursor()
+    return cursor_local_plus.cursor
+
+def criar_banco_plus():
+    """Cria o banco de dados PLUS com todas as tabelas e índices"""
+    cursor = get_cursor_plus()
     
     # Tabela principal com TODAS as 39 colunas e índices otimizados
     cursor.execute("""
@@ -66,7 +81,7 @@ def inicializar_banco_plus():
         obs TEXT,
         status TEXT,
         data_importacao TEXT,
-        hash_dados TEXT  -- Para detectar duplicatas
+        hash_dados TEXT
     )
     """)
     
@@ -89,10 +104,7 @@ def inicializar_banco_plus():
     )
     """)
     
-    conn.commit()
-    return conn, cursor
-
-conn_plus, cursor_plus = inicializar_banco_plus()
+    get_connection_plus().commit()
 
 # ==============================
 # FUNÇÕES OTIMIZADAS
@@ -100,8 +112,12 @@ conn_plus, cursor_plus = inicializar_banco_plus()
 
 def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None, duplicatas=False):
     """Importação ultra-rápida com controle de duplicatas"""
+    print(f"DEBUG: Importar planilha PLUS: {caminho_arquivo}")
+    
     if not cliente:
         cliente = os.path.basename(caminho_arquivo).replace('.xlsx', '').replace('.xls', '')
+    
+    print(f"DEBUG: Cliente: {cliente}")
     
     try:
         from openpyxl import load_workbook
@@ -110,13 +126,26 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         wb = load_workbook(caminho_arquivo, read_only=True)
         ws = wb.active
         
-        # Detectar colunas
+        # Detectar cabeçalhos - usar a linha com mais células preenchidas (linhas 2-20)
+        max_celulas = 0
         cabecalhos = []
-        for cell in next(ws.iter_rows(min_row=1, max_row=1, values_only=True)):
-            if cell:
-                cabecalhos.append(str(cell).strip())
+        linha_cabecalho = 1
+        
+        for row_num in range(2, min(21, ws.max_row + 1)):  # Começar da linha 2
+            linha = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
+            celulas_preenchidas = [c for c in linha if c and str(c).strip()]
+            
+            # Se esta linha tem mais células preenchidas que a anterior, use-a
+            if len(celulas_preenchidas) > max_celulas:
+                max_celulas = len(celulas_preenchidas)
+                cabecalhos = [str(c).strip() for c in linha if c and str(c).strip()]
+                linha_cabecalho = row_num
+                
+        print(f"DEBUG: Cabeçalhos encontrados na linha {linha_cabecalho}: {len(cabecalhos)} colunas")
+        print(f"DEBUG: Primeiros cabeçalhos: {cabecalhos[:10]}")
         
         colunas_detectadas = detectar_colunas_excel_plus(cabecalhos)
+        print(f"DEBUG: Colunas detectadas: {colunas_detectadas}")
         
         total_importados = 0
         total_duplicatas = 0
@@ -126,19 +155,28 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         batch_size = 5000
         dados_batch = []
         
-        for row in ws.iter_rows(min_row=2, values_only=True):
+        # Começar a ler dados após a linha de cabeçalho
+        linha_inicial_dados = linha_cabecalho + 1
+        
+        for row in ws.iter_rows(min_row=linha_inicial_dados, values_only=True):
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
-                
-            # Extrair TODAS as colunas
-            dados = {}
+            
+            # Extrair dados usando mapeamento direto (índice -> coluna banco)
+            dados = {col: '' for col in COLUNAS_BANCO_PLUS}  # Inicializar todas colunas vazias
+            
             for i, cell in enumerate(row):
-                if i < len(cabecalhos):
-                    coluna_nome = cabecalhos[i].lower()
-                    for padrao, coluna_real in colunas_detectadas.items():
-                        if coluna_nome == coluna_real.lower():
-                            dados[padrao] = str(cell).strip() if cell else ''
-                            break
+                if i in colunas_detectadas:
+                    coluna_banco = colunas_detectadas[i]
+                    dados[coluna_banco] = str(cell).strip() if cell else ''
+            
+            # Adicionar campos fixos
+            dados['cliente'] = cliente
+            dados['arquivo_origem'] = os.path.basename(caminho_arquivo)
+            
+            # DEBUG: Mostrar primeiros dados sendo importados
+            if total_importados < 3:
+                print(f"DEBUG: Dados linha {total_importados + 1}: codigo='{dados.get('codigo', '')}', descricao='{dados.get('descricao', '')}'")
             
             # Criar hash para detectar duplicatas (usando codigo e descricao)
             hash_dados = hashlib.md5(
@@ -147,59 +185,59 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             
             # Verificar duplicata se necessário
             if duplicatas:
-                cursor_plus.execute("SELECT id FROM produtos_plus WHERE hash_dados = ?", (hash_dados,))
-                if cursor_plus.fetchone():
+                get_cursor_plus().execute("SELECT id FROM produtos_plus WHERE hash_dados = ?", (hash_dados,))
+                if get_cursor_plus().fetchone():
                     total_duplicatas += 1
                     continue
             
-            # Adicionar TODAS as 39 colunas no batch
+            # Adicionar TODAS as 39 colunas no batch (ordem do banco)
             dados_batch.append((
-                cliente,
-                os.path.basename(caminho_arquivo),
-                dados.get('codigo', ''),
-                dados.get('descricao', ''),
-                dados.get('peso', ''),
-                dados.get('valor', ''),
-                dados.get('ncm', ''),
-                dados.get('doc', ''),
-                dados.get('rev', ''),
-                dados.get('code', ''),
-                dados.get('quantity', ''),
-                dados.get('um', ''),
-                dados.get('ccy', ''),
-                dados.get('total_amount', ''),
-                dados.get('marca', ''),
-                dados.get('inner_qty', ''),
-                dados.get('master_qty', ''),
-                dados.get('total_ctns', ''),
-                dados.get('gross_weight', ''),
-                dados.get('net_weight_pc', ''),
-                dados.get('gross_weight_pc', ''),
-                dados.get('net_weight_ctn', ''),
-                dados.get('gross_weight_ctn', ''),
-                dados.get('factory', ''),
-                dados.get('address', ''),
-                dados.get('telephone', ''),
-                dados.get('ean13', ''),
-                dados.get('dun14_inner', ''),
-                dados.get('dun14_master', ''),
-                dados.get('length', ''),
-                dados.get('width', ''),
-                dados.get('height', ''),
-                dados.get('cbm', ''),
-                dados.get('prc_kg', ''),
-                dados.get('li', ''),
-                dados.get('obs', ''),
-                dados.get('status', ''),
+                dados['cliente'],
+                dados['arquivo_origem'],
+                dados['codigo'],
+                dados['descricao'],
+                dados['peso'],
+                dados['valor'],
+                dados['ncm'],
+                dados['doc'],
+                dados['rev'],
+                dados['code'],
+                dados['quantity'],
+                dados['um'],
+                dados['ccy'],
+                dados['total_amount'],
+                dados['marca'],
+                dados['inner_qty'],
+                dados['master_qty'],
+                dados['total_ctns'],
+                dados['gross_weight'],
+                dados['net_weight_pc'],
+                dados['gross_weight_pc'],
+                dados['net_weight_ctn'],
+                dados['gross_weight_ctn'],
+                dados['factory'],
+                dados['address'],
+                dados['telephone'],
+                dados['ean13'],
+                dados['dun14_inner'],
+                dados['dun14_master'],
+                dados['length'],
+                dados['width'],
+                dados['height'],
+                dados['cbm'],
+                dados['prc_kg'],
+                dados['li'],
+                dados['obs'],
+                dados['status'],
                 data_atual,
                 hash_dados
             ))
             
             # Insert em batch com TODAS as 39 colunas
             if len(dados_batch) >= batch_size:
-                cursor_plus.executemany("""
+                get_cursor_plus().executemany("""
                     INSERT INTO produtos_plus
-                    (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                    (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev, code,
                      quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                      total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                      net_weight_ctn, gross_weight_ctn, factory, address, telephone,
@@ -207,7 +245,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                      prc_kg, li, obs, status, data_importacao, hash_dados)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, dados_batch)
-                conn_plus.commit()
+                get_connection_plus().commit()
                 total_importados += len(dados_batch)
                 dados_batch = []
                 
@@ -216,9 +254,9 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         
         # Insert final com TODAS as 39 colunas
         if dados_batch:
-            cursor_plus.executemany("""
+            get_cursor_plus().executemany("""
                 INSERT INTO produtos_plus
-                (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev,
+                (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev, code,
                  quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                  total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                  net_weight_ctn, gross_weight_ctn, factory, address, telephone,
@@ -226,7 +264,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                  prc_kg, li, obs, status, data_importacao, hash_dados)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, dados_batch)
-            conn_plus.commit()
+            get_connection_plus().commit()
             total_importados += len(dados_batch)
         
         wb.close()
@@ -234,64 +272,118 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         # Atualizar estatísticas
         atualizar_estatisticas_plus()
         
+        # DEBUG: Verificar dados no banco
+        print(f"DEBUG: Verificando dados no banco PLUS após importação...")
+        get_cursor_plus().execute("SELECT codigo, descricao FROM produtos_plus LIMIT 5")
+        resultados_verificacao = get_cursor_plus().fetchall()
+        print(f"DEBUG: Primeiros 5 registros no banco: {resultados_verificacao}")
+        
         return total_importados, total_duplicatas
         
     except Exception as e:
         print(f"Erro ao importar {caminho_arquivo}: {str(e)}")
         return 0, 0
 
+# Definir colunas fixas do sistema PLUS (mesma ordem do banco)
+COLUNAS_BANCO_PLUS = [
+    'cliente', 'arquivo_origem', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
+    'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount', 'marca',
+    'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
+    'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
+    'address', 'telephone', 'ean13', 'dun14_inner', 'dun14_master',
+    'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status'
+]
+
+# Mapeamento de sinônimos para colunas PLUS
+MAPEAMENTO_SINONIMOS_PLUS = {
+    'codigo': ['codigo', 'código', 'cod', 'code', 'item', 'sku', 'referencia', 'referência', 'id', 'produto_id'],
+    'descricao': ['descricao', 'descrição', 'produto', 'item_desc', 'name', 'descrição do produto', 'titulo', 'nome', 'descrição portugues', 'description portuguese', 'descrição portugues (description portuguese)'],
+    'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
+    'valor': ['valor', 'preco', 'preço', 'price', 'unitario', 'unitário', 'custo', 'valor_unit', 'preco_unit', 'unit price umo'],
+    'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh', 'hs code', 'hs code'],
+    'doc': ['doc', 'documento'],
+    'rev': ['rev', 'revisao', 'revisão'],
+    'code': ['code', 'codigo_interno'],
+    'quantity': ['quantity', 'quantidade', 'qtd'],
+    'um': ['um', 'unidade', 'un'],
+    'ccy': ['ccy', 'moeda', 'currency'],
+    'total_amount': ['total amount', 'valor_total', 'total', 'total amount umo'],
+    'marca': ['marca', 'brand', 'fabricante', 'marca (brand)'],
+    'inner_qty': ['inner qty', 'quantidade_interna', 'qtd_interna', 'inner quantity'],
+    'master_qty': ['master qty', 'quantidade_master', 'qtd_master', 'master quantity'],
+    'total_ctns': ['total ctns', 'caixas', 'cartons', 'total ctns'],
+    'gross_weight': ['gross weight', 'peso_bruto', 'total gross weight( kg )', 'total gross weight (kg)'],
+    'net_weight_pc': ['net weight pc', 'peso_liquido_unit', 'net weight / pc( g )', 'net weight / pc (g)'],
+    'gross_weight_pc': ['gross weight pc', 'peso_bruto_unit', 'gross weight / pc( g )', 'gross weight / pc (g)'],
+    'net_weight_ctn': ['net weight ctn', 'peso_liquido_cx', 'net weight / ctn( kg )', 'net weight / ctn (kg)'],
+    'gross_weight_ctn': ['gross weight ctn', 'peso_bruto_cx', 'gross weight / ctn( kg )', 'gross weight / ctn (kg)'],
+    'factory': ['factory', 'fabrica', 'fábrica', 'name of factory'],
+    'address': ['address', 'endereco', 'endereço', 'address of factory'],
+    'telephone': ['telephone', 'telefone', 'tel', 'phone'],
+    'ean13': ['ean13', 'ean', 'barcode'],
+    'dun14_inner': ['dun-14 inner', 'dun14_interno', 'dun_inner'],
+    'dun14_master': ['dun-14 master', 'dun14_master'],
+    'length': ['length', 'comprimento', 'length ctn'],
+    'width': ['width', 'largura', 'width ctn'],
+    'height': ['height', 'altura', 'height ctn'],
+    'cbm': ['cbm', 'metro_cubico', 'total cbm'],
+    'prc_kg': ['prc/kg', 'preco_kg', 'prc/kg'],
+    'li': ['li', 'licenca', 'licença'],
+    'obs': ['obs', 'observacoes', 'observações', 'notas'],
+    'status': ['status', 'situacao', 'situação', 'status da compra']
+}
+
 def detectar_colunas_excel_plus(cabecalhos):
-    """Detecção de colunas melhorada para TODAS as 39 colunas"""
-    colunas_detectadas = {}
+    """Detecção de colunas com mapeamento flexível (sinônimos)"""
+    mapeamento = {}
+    colunas_nao_mapeadas = []
     
-    mapeamento_expandido = {
-        'codigo': ['codigo', 'código', 'cod', 'code', 'item', 'sku', 'referencia', 'referência', 'id', 'produto_id'],
-        'descricao': ['descricao', 'descrição', 'produto', 'item_desc', 'name', 'descrição do produto', 'titulo', 'nome'],
-        'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
-        'valor': ['valor', 'preco', 'preço', 'price', 'unitario', 'unitário', 'custo', 'valor_unit', 'preco_unit'],
-        'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh'],
-        'doc': ['doc', 'documento'],
-        'rev': ['rev', 'revisao', 'revisão'],
-        'code': ['code', 'codigo_interno'],
-        'quantity': ['quantity', 'quantidade', 'qtd'],
-        'um': ['um', 'unidade', 'un'],
-        'ccy': ['ccy', 'moeda', 'currency'],
-        'total_amount': ['total amount', 'valor_total', 'total'],
-        'marca': ['marca', 'brand', 'fabricante'],
-        'inner_qty': ['inner qty', 'quantidade_interna', 'qtd_interna'],
-        'master_qty': ['master qty', 'quantidade_master', 'qtd_master'],
-        'total_ctns': ['total ctns', 'caixas', 'cartons'],
-        'gross_weight': ['gross weight', 'peso_bruto'],
-        'net_weight_pc': ['net weight pc', 'peso_liquido_unit'],
-        'gross_weight_pc': ['gross weight pc', 'peso_bruto_unit'],
-        'net_weight_ctn': ['net weight ctn', 'peso_liquido_cx'],
-        'gross_weight_ctn': ['gross weight ctn', 'peso_bruto_cx'],
-        'factory': ['factory', 'fabrica', 'fábrica'],
-        'address': ['address', 'endereco', 'endereço'],
-        'telephone': ['telephone', 'telefone', 'tel', 'phone'],
-        'ean13': ['ean13', 'ean', 'barcode'],
-        'dun14_inner': ['dun-14 inner', 'dun14_interno', 'dun_inner'],
-        'dun14_master': ['dun-14 master', 'dun14_master'],
-        'length': ['length', 'comprimento'],
-        'width': ['width', 'largura'],
-        'height': ['height', 'altura'],
-        'cbm': ['cbm', 'metro_cubico'],
-        'prc_kg': ['prc/kg', 'preco_kg'],
-        'li': ['li', 'licenca', 'licença'],
-        'obs': ['obs', 'observacoes', 'observações', 'notas'],
-        'status': ['status', 'situacao', 'situação']
-    }
-    
-    for col_padrao, alternativas in mapeamento_expandido.items():
-        for cabecalho in cabecalhos:
-            if cabecalho.lower() in [alt.lower() for alt in alternativas]:
-                colunas_detectadas[col_padrao] = cabecalho
+    for i, cab in enumerate(cabecalhos):
+        cab_lower = cab.lower().strip()
+        coluna_encontrada = None
+        
+        # Tentar mapeamento direto primeiro
+        for col_banco in COLUNAS_BANCO_PLUS:
+            if cab_lower == col_banco.lower():
+                coluna_encontrada = col_banco
                 break
+        
+        # Se não encontrou, tentar por sinônimos
+        if not coluna_encontrada:
+            for col_banco, sinonimos in MAPEAMENTO_SINONIMOS_PLUS.items():
+                if cab_lower in [s.lower() for s in sinonimos]:
+                    coluna_encontrada = col_banco
+                    break
+        
+        if coluna_encontrada:
+            mapeamento[i] = coluna_encontrada
+            print(f"✅ Coluna {i}: '{cab}' -> MAPEADA como '{coluna_encontrada}'")
+        else:
+            colunas_nao_mapeadas.append((i, cab))
+            print(f"❌ Coluna {i}: '{cab}' -> NÃO MAPEADA")
     
-    return colunas_detectadas
+    print(f"\n=== RESUMO DO MAPEAMENTO PLUS ===")
+    print(f"✅ Total mapeadas: {len(mapeamento)}")
+    print(f"❌ Total não mapeadas: {len(colunas_nao_mapeadas)}")
+    if colunas_nao_mapeadas:
+        print(f"❌ Colunas não mapeadas: {colunas_nao_mapeadas}")
+    print(f"================================\n")
+    
+    return mapeamento
 
 def buscar_produtos_plus(termo, cliente_filtro=None, limit=10000):
-    """Busca otimizada com TODAS as 39 colunas"""
+    """Busca otimizada com TODAS as 39 colunas - case-insensitive"""
+    print(f"DEBUG: Buscar produtos - termo: '{termo}', cliente: '{cliente_filtro}'")
+    
+    # DEBUG: Verificar dados no banco antes da busca
+    print(f"DEBUG: Verificando amostra de dados no banco...")
+    try:
+        get_cursor_plus().execute("SELECT cliente, codigo, descricao FROM produtos_plus LIMIT 3")
+        amostra = get_cursor_plus().fetchall()
+        print(f"DEBUG: Amostra no banco: {amostra}")
+    except Exception as e:
+        print(f"DEBUG: Erro ao verificar amostra: {e}")
+    
     query = """
         SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm,
                doc, rev, code, quantity, um, ccy, total_amount, marca,
@@ -305,33 +397,53 @@ def buscar_produtos_plus(termo, cliente_filtro=None, limit=10000):
     params = []
     
     if termo:
-        query += " AND (codigo LIKE ? OR descricao LIKE ? OR ncm LIKE ?)"
+        # Busca case-insensitive usando LOWER()
+        query += " AND (LOWER(codigo) LIKE LOWER(?) OR LOWER(descricao) LIKE LOWER(?) OR LOWER(ncm) LIKE LOWER(?))"
         params.extend([f"%{termo}%", f"%{termo}%", f"%{termo}%"])
+        print(f"DEBUG: Termo de busca adicionado (case-insensitive): {termo}")
     
     if cliente_filtro and cliente_filtro != "Todos":
-        query += " AND cliente = ?"
+        query += " AND LOWER(cliente) = LOWER(?)"
         params.append(cliente_filtro)
+        print(f"DEBUG: Filtro de cliente adicionado: {cliente_filtro}")
     
     query += " ORDER BY cliente, descricao LIMIT ?"
     params.append(limit)
     
-    cursor_plus.execute(query, params)
-    return cursor_plus.fetchall()
+    print(f"DEBUG: Query: {query[:200]}...")
+    print(f"DEBUG: Params: {params}")
+    
+    try:
+        get_cursor_plus().execute(query, params)
+        resultados = get_cursor_plus().fetchall()
+        print(f"DEBUG: Resultados encontrados: {len(resultados)}")
+        if resultados:
+            print(f"DEBUG: Primeiro resultado: {resultados[0]}")
+        return resultados
+    except Exception as e:
+        print(f"DEBUG: Erro na busca PLUS: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 
 def contar_produtos_plus():
     """Contagem otimizada"""
-    cursor_plus.execute("SELECT COUNT(*) FROM produtos_plus")
-    return cursor_plus.fetchone()[0]
+    get_cursor_plus().execute("SELECT COUNT(*) FROM produtos_plus")
+    count = get_cursor_plus().fetchone()[0]
+    print(f"DEBUG: Total de produtos PLUS: {count}")
+    return count
 
 def contar_planilhas_plus():
     """Contagem de planilhas únicas"""
-    cursor_plus.execute("SELECT COUNT(DISTINCT arquivo_origem) FROM produtos_plus")
-    return cursor_plus.fetchone()[0]
+    get_cursor_plus().execute("SELECT COUNT(DISTINCT arquivo_origem) FROM produtos_plus")
+    count = get_cursor_plus().fetchone()[0]
+    print(f"DEBUG: Total de planilhas PLUS: {count}")
+    return count
 
 def tamanho_banco_plus():
     """Tamanho do banco em MB"""
-    cursor_plus.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
-    tamanho_bytes = cursor_plus.fetchone()[0]
+    get_cursor_plus().execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
+    tamanho_bytes = get_cursor_plus().fetchone()[0]
     return round(tamanho_bytes / (1024 * 1024), 2)
 
 def atualizar_estatisticas_plus():
@@ -340,17 +452,17 @@ def atualizar_estatisticas_plus():
     total_planilhas = contar_planilhas_plus()
     tamanho_mb = tamanho_banco_plus()
     
-    cursor_plus.execute("""
+    get_cursor_plus().execute("""
         INSERT OR REPLACE INTO stats_plus (id, total_planilhas, total_produtos, ultima_atualizacao, tamanho_banco_mb)
         VALUES (1, ?, ?, ?, ?)
     """, (total_planilhas, total_produtos, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), tamanho_mb))
-    conn_plus.commit()
+    get_connection_plus().commit()
 
 def otimizar_banco_plus():
     """Otimização do banco para performance máxima"""
-    cursor_plus.execute("VACUUM")
-    cursor_plus.execute("ANALYZE")
-    conn_plus.commit()
+    get_cursor_plus().execute("VACUUM")
+    get_cursor_plus().execute("ANALYZE")
+    get_connection_plus().commit()
 
 # ==============================
 # INTERFACE PLUS
@@ -574,16 +686,21 @@ class SistemaPlanilhasPlus:
         termo = self.termo_busca.get().strip()
         cliente = self.cliente_selecionado.get()
         
+        print(f"DEBUG: Executar busca PLUS - termo: '{termo}', cliente: '{cliente}'")
+        
         # Limpar tabela
         for item in self.tabela_plus.get_children():
             self.tabela_plus.delete(item)
         
         if not termo and cliente == "Todos":
+            print(f"DEBUG: Nenhum termo ou cliente selecionado")
             self.status_bar_plus.config(text="Digite um termo ou selecione cliente")
             return
         
         try:
+            print(f"DEBUG: Chamando buscar_produtos_plus...")
             resultados = buscar_produtos_plus(termo, cliente, limit=10000)
+            print(f"DEBUG: Resultados retornados: {len(resultados)}")
             
             for resultado in resultados:
                 self.tabela_plus.insert('', 'end', values=resultado)
@@ -592,6 +709,7 @@ class SistemaPlanilhasPlus:
             self.status_bar_plus.config(text=f"Busca PLUS: {len(resultados):,} resultados")
             
         except Exception as e:
+            print(f"DEBUG: Erro na busca PLUS interface: {e}")
             messagebox.showerror("Erro", f"Erro na busca: {str(e)}")
     
     def limpar_busca_plus(self):
