@@ -1,6 +1,7 @@
-openpyxl
+Flask>=2.3.0
+Werkzeug>=2.3.0
+gunicorn>=21.0.0
+openpyxl>=3.0.0
 Pillow>=3.0.0
 requests>=2.25.0
 qrcode[pil]>=7.0.0
-Flask>=2.3.0
-Werkzeug>=2.3.0

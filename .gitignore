@@ -1,0 +1,14 @@
+.venv
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.db
+.DS_Store
+*.log
+.git
+.qoder
+temp_images/
+temp_upload/
+uploads/
+exportacoes/
