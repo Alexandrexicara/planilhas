@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Sistema Plus</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        h1 { font-size: 3rem; margin-bottom: 20px; }
+        .price { font-size: 2.5rem; font-weight: bold; margin: 20px 0; }
+        .btn {
+            display: inline-block;
+            padding: 20px 50px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin: 20px 10px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .features {
+            margin: 30px 0;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Sistema Plus</h1>
+        <p>Importação automática de Excel com extração inteligente de imagens</p>
+        
+        <div class="price">
+            <div style="text-decoration: line-through; opacity: 0.7;">De R$ 5.000,00</div>
+            <div>R$ 4.500,00</div>
+            <div style="font-size: 1rem; margin-top: 10px;">10% OFF - Pagamento único</div>
+        </div>
+        
+        <div class="features">
+            ✅ Importação automática de Excel<br>
+            ✅ Extração automática de imagens<br>
+            ✅ Catálogo web completo<br>
+            ✅ Banco de dados profissional<br>
+            ✅ Suporte dedicado
+        </div>
+        
+        <button class="btn" onclick="abrirSistema()">🚀 Começar Agora</button>
+        <button class="btn" onclick="abrirManual()">📁 Abrir Manualmente</button>
+        
+        <div id="loading" class="loading">
+            🔄 Abrindo sistema... Aguarde...
+        </div>
+        
+        <div style="margin-top: 30px; font-size: 0.9rem; opacity: 0.8;">
+            Garantia de 7 dias | Suporte dedicado | Acesso imediato
+        </div>
+    </div>
+
+    <script>
+        function abrirSistema() {
+            document.getElementById('loading').style.display = 'block';
+            
+            setTimeout(() => {
+                // Tenta abrir o script do menu
+                window.location.href = 'abrir_menu.bat';
+            }, 1000);
+        }
+        
+        function abrirManual() {
+            alert('📋 PARA ABRIR O SISTEMA:\n\n1️⃣ Execute: abrir_menu.bat\n2️⃣ Ou execute: .\\menu.ps1\n3️⃣ Ou execute: python sistema_plus.py\n\n✅ O sistema de cadastro já está pronto!');
+        }
+        
+        // Auto-abrir após 3 segundos
+        setTimeout(() => {
+            abrirSistema();
+        }, 3000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Sistema Plus - Importação Automática de Excel{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <h1 class="hero-title">
+            <i class="fas fa-magic"></i> Sistema Plus
+        </h1>
+        <p class="hero-subtitle">
+            Importação automática de Excel com extração inteligente de imagens
+        </p>
+        
+        <div class="row justify-content-center mb-5">
+            <div class="col-md-8">
+                <div class="card price-card">
+                    <div class="card-body text-center position-relative">
+                        <div class="discount-badge">
+                            <i class="fas fa-tag"></i> {{ config.desconto }}% OFF
+                        </div>
+                        <h3 class="mb-4">Sistema Completo de Importação</h3>
+                        <div class="original-price">De R$ {{ "%.2f"|format(config.valor_original) }}</div>
+                        <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
+                        <p class="mb-4">Pagamento único, acesso vitalício</p>
+                        <a href="#" onclick="iniciarMenu(); return false;" class="btn btn-light btn-lg px-5">
+                            <i class="fas fa-rocket"></i> Iniciar Sistema
+                        </a>
+                        <small class="d-block mt-3">
+                            <i class="fas fa-shield-alt"></i> Garantia de 7 dias | Suporte dedicado
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-5 fw-bold text-white">
+                <i class="fas fa-star"></i> Recursos Principais
+            </h2>
+            <p class="lead text-white-50">
+                Tudo que você precisa para gerenciar seus produtos de forma profissional
+            </p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                        <h4 class="card-title">Importação Automática</h4>
+                        <p class="card-text">
+                            Importe planilhas Excel automaticamente com detecção inteligente de colunas
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-images"></i>
+                        </div>
+                        <h4 class="card-title">Extração de Imagens</h4>
+                        <p class="card-text">
+                            Extrai automaticamente imagens coladas no Excel e associa aos produtos
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-globe"></i>
+                        </div>
+                        <h4 class="card-title">Catálogo Web</h4>
+                        <p class="card-text">
+                            Gere automaticamente um catálogo web profissional para seus produtos
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <h4 class="card-title">Banco de Dados</h4>
+                        <p class="card-text">
+                            Armazenamento seguro e organizado de todos os seus produtos
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <h4 class="card-title">Relatórios</h4>
+                        <p class="card-text">
+                            Relatórios detalhados sobre importações e estatísticas de uso
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <h4 class="card-title">Alta Performance</h4>
+                        <p class="card-text">
+                            Processamento rápido e eficiente mesmo com grandes volumes de dados
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4" id="statsSection">
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalProducts">-</div>
+                    <h5 class="text-muted">Produtos Importados</h5>
+                    <i class="fas fa-box fa-2x text-primary mt-3"></i>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-number" id="totalClients">-</div>
+                    <h5 class="text-muted">Clientes Ativos</h5>
+                    <i class="fas fa-users fa-2x text-success mt-3"></i>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-number" id="recentImports">-</div>
+                    <h5 class="text-muted">Importações Recentemente</h5>
+                    <i class="fas fa-clock fa-2x text-warning mt-3"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- How It Works Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-5 fw-bold text-white">
+                <i class="fas fa-cogs"></i> Como Funciona
+            </h2>
+            <p class="lead text-white-50">
+                Simples, rápido e eficiente em 3 passos
+            </p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-upload"></i>
+                        </div>
+                        <h4 class="card-title">1. Envie o Excel</h4>
+                        <p class="card-text">
+                            Faça upload da sua planilha Excel com os produtos e imagens
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-magic"></i>
+                        </div>
+                        <h4 class="card-title">2. Processamento Automático</h4>
+                        <p class="card-text">
+                            O sistema extrai automaticamente os dados e imagens
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <div class="feature-icon">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <h4 class="card-title">3. Catálogo Pronto</h4>
+                        <p class="card-text">
+                            Seu catálogo web está pronto para uso imediato
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="card border-0 bg-white shadow-lg">
+            <div class="card-body text-center p-5">
+                <h2 class="mb-4">
+                    <i class="fas fa-rocket text-primary"></i> 
+                    Pronto para transformar sua gestão de produtos?
+                </h2>
+                <p class="lead mb-4">
+                    Comece agora mesmo e tenha acesso imediato a todos os recursos
+                </p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="#" onclick="iniciarMenu(); return false;" class="btn btn-gradient btn-lg">
+                        <i class="fas fa-play"></i> Iniciar Agora
+                    </a>
+                    <a href="{{ url_for('catalog') }}" class="btn btn-outline-primary btn-lg">
+                        <i class="fas fa-plus-circle"></i> Novos Produtos
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Carregar estatísticas
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/api/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalProducts').textContent = data.total_products.toLocaleString('pt-BR');
+            document.getElementById('totalClients').textContent = data.total_clients.toLocaleString('pt-BR');
+            document.getElementById('recentImports').textContent = data.recent_imports.toLocaleString('pt-BR');
+        })
+        .catch(error => {
+            console.error('Erro ao carregar estatísticas:', error);
+        });
+});
+
+// Animação de números
+function animateValue(element, start, end, duration) {
+    const range = end - start;
+    const increment = range / (duration / 16);
+    let current = start;
+    
+    const timer = setInterval(() => {
+        current += increment;
+        if (current >= end) {
+            current = end;
+            clearInterval(timer);
+        }
+        element.textContent = Math.floor(current).toLocaleString('pt-BR');
+    }, 16);
+}
+
+// Observador para animar números quando visível
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const element = entry.target;
+            const finalValue = parseInt(element.textContent.replace(/[^\d]/g, ''));
+            if (!isNaN(finalValue)) {
+                animateValue(element, 0, finalValue, 1000);
+            }
+            observer.unobserve(element);
+        }
+    });
+});
+
+// Função para iniciar o menu
+function iniciarMenu() {
+    fetch('/iniciar-menu')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('✅ ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao iniciar menu:', error);
+            alert('❌ Erro ao iniciar o menu. Verifique o console.');
+        });
+}
+
+document.querySelectorAll('.stats-number').forEach(element => {
+    observer.observe(element);
+});
+</script>
+{% endblock %}
