@@ -296,21 +296,22 @@ const observer = new IntersectionObserver((entries) => {
     });
 });
 
-// Função para iniciar o sistema (redireciona para catálogo)
+// Função para iniciar o sistema (abre login em nova aba)
 function iniciarMenu() {
-    fetch('/iniciar-menu')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.redirect) {
-                window.location.href = data.redirect;
-            } else if (data.success) {
-                window.location.href = '/catalog';
-            }
-        })
-        .catch(error => {
-            console.error('Erro:', error);
-            window.location.href = '/catalog';
-        });
+    fetch('/iniciar-menu', {
+        method: 'GET'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Sistema iniciado! A janela do menu vai aparecer em poucos segundos...');
+        } else {
+            alert('❌ Erro: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('❌ Erro ao iniciar: ' + error);
+    });
 }
 
 document.querySelectorAll('.stats-number').forEach(element => {
