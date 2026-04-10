@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 import os
 import sys
+import subprocess
 import sqlite3
 import zipfile
 import shutil
@@ -161,22 +162,15 @@ def index():
     """Página inicial atraente"""
     return render_template('index.html', config=SISTEMA_CONFIG)
 
-@app.route('/iniciar-menu')
-def iniciar_menu():
-    """Abre o menu_principal.py diretamente sem login"""
-    import subprocess
+@app.route('/executar-sistema')
+def executar_sistema():
+    """Executa o sistema.py após login bem-sucedido"""
     try:
-        # Executa o menu_principal.py
-        subprocess.Popen([sys.executable, 'menu_principal.py'])
-        return jsonify({
-            'success': True,
-            'message': 'Sistema iniciado! A janela do menu vai aparecer...'
-        })
+        subprocess.Popen([sys.executable, 'sistema.py'])
+        # Retorna página visual ao invés de JSON puro
+        return render_template('iniciando.html')
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'message': f'Erro ao iniciar: {str(e)}'
-        }), 500
+        return render_template('iniciando.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
@@ -190,7 +184,7 @@ def login_page():
             return jsonify({
                 'success': True,
                 'message': 'Login realizado com sucesso!',
-                'redirect': url_for('catalog')
+                'redirect': url_for('executar_sistema')
             })
         else:
             return jsonify({

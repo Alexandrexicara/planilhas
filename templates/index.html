@@ -24,7 +24,7 @@
                         <div class="original-price">De R$ {{ "%.2f"|format(config.valor_original) }}</div>
                         <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
                         <p class="mb-4">Pagamento único, acesso vitalício</p>
-                        <a href="#" onclick="iniciarMenu(); return false;" class="btn btn-light btn-lg px-5">
+                        <a href="/login" class="btn btn-light btn-lg px-5">
                             <i class="fas fa-rocket"></i> Iniciar Sistema
                         </a>
                         <small class="d-block mt-3">
@@ -237,7 +237,7 @@
                     Comece agora mesmo e tenha acesso imediato a todos os recursos
                 </p>
                 <div class="d-flex justify-content-center gap-3">
-                    <a href="#" onclick="iniciarMenu(); return false;" class="btn btn-gradient btn-lg">
+                    <a href="/login" class="btn btn-gradient btn-lg">
                         <i class="fas fa-play"></i> Iniciar Agora
                     </a>
                     <a href="{{ url_for('catalog') }}" class="btn btn-outline-primary btn-lg">
@@ -295,24 +295,6 @@ const observer = new IntersectionObserver((entries) => {
         }
     });
 });
-
-// Função para iniciar o sistema (abre login em nova aba)
-function iniciarMenu() {
-    fetch('/iniciar-menu', {
-        method: 'GET'
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('✅ Sistema iniciado! A janela do menu vai aparecer em poucos segundos...');
-        } else {
-            alert('❌ Erro: ' + data.message);
-        }
-    })
-    .catch(error => {
-        alert('❌ Erro ao iniciar: ' + error);
-    });
-}
 
 document.querySelectorAll('.stats-number').forEach(element => {
     observer.observe(element);
