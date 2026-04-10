@@ -7,8 +7,6 @@ from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 import json
 from datetime import datetime
-import subprocess
-import threading
 
 app = Flask(__name__)
 app.secret_key = 'sistema_plus_2024'
@@ -164,30 +162,67 @@ def index():
 
 @app.route('/iniciar-menu')
 def iniciar_menu():
-    """Inicia o menu PowerShell em uma thread separada"""
-    def executar_menu():
-        try:
-            # Caminho do Python
-            python_path = "C:\\Users\\Positivo\\AppData\\Local\\Programs\\Python\\Python314\\python.exe"
-            menu_path = os.path.join(os.getcwd(), "menu_principal.py")
-            
-            # Executar menu_principal.py diretamente com Python
-            subprocess.Popen(
-                [python_path, menu_path],
-                cwd=os.getcwd()
-            )
-        except Exception as e:
-            print(f"Erro ao iniciar menu: {e}")
-    
-    # Executar em thread separada para não bloquear o Flask
-    thread = threading.Thread(target=executar_menu)
-    thread.daemon = True
-    thread.start()
-    
-    # Retornar resposta imediatamente
+    """Redireciona para login"""
     return jsonify({
         'success': True,
-        'message': 'Menu iniciado! Uma nova janela será aberta...'
+        'message': 'Redirecionando para login...',
+        'redirect': url_for('login_page')
+    })
+
+@app.route('/login', methods=['GET', 'POST'])
+def login_page():
+    """Página de login do sistema"""
+    if request.method == 'POST':
+        email = request.form.get('email', '').lower()
+        senha = request.form.get('senha', '')
+        
+        # Autenticação simples (padrão: admin@planilhas.com / admin123)
+        if email == 'admin@planilhas.com' and senha == 'admin123':
+            return jsonify({
+                'success': True,
+                'message': 'Login realizado com sucesso!',
+                'redirect': url_for('catalog')
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Email ou senha incorretos'
+            }), 401
+    
+    return render_template('login.html', config=SISTEMA_CONFIG)
+
+@app.route('/registro', methods=['POST'])
+def registro():
+    """Registrar novo usuário"""
+    nome = request.form.get('nome', '')
+    email = request.form.get('email', '').lower()
+    senha = request.form.get('senha', '')
+    confirma_senha = request.form.get('confirma_senha', '')
+    
+    if not all([nome, email, senha, confirma_senha]):
+        return jsonify({
+            'success': False,
+            'message': 'Todos os campos são obrigatórios'
+        }), 400
+    
+    if senha != confirma_senha:
+        return jsonify({
+            'success': False,
+            'message': 'As senhas não correspondem'
+        }), 400
+    
+    if len(senha) < 6:
+        return jsonify({
+            'success': False,
+            'message': 'A senha deve ter no mínimo 6 caracteres'
+        }), 400
+    
+    # Aqui você poderia salvar no banco de dados
+    # Por enquanto, apenas retorna sucesso
+    return jsonify({
+        'success': True,
+        'message': 'Usuário registrado com sucesso! Faça login agora.',
+        'redirect': url_for('login_page')
     })
 
 @app.route('/upload')

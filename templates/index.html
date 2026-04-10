@@ -296,18 +296,20 @@ const observer = new IntersectionObserver((entries) => {
     });
 });
 
-// Função para iniciar o menu
+// Função para iniciar o sistema (redireciona para catálogo)
 function iniciarMenu() {
     fetch('/iniciar-menu')
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                alert('✅ ' + data.message);
+            if (data.success && data.redirect) {
+                window.location.href = data.redirect;
+            } else if (data.success) {
+                window.location.href = '/catalog';
             }
         })
         .catch(error => {
-            console.error('Erro ao iniciar menu:', error);
-            alert('❌ Erro ao iniciar o menu. Verifique o console.');
+            console.error('Erro:', error);
+            window.location.href = '/catalog';
         });
 }
 
