@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 import os
 import sys
-import subprocess
 import sqlite3
 import zipfile
 import shutil
@@ -164,13 +163,13 @@ def index():
 
 @app.route('/executar-sistema')
 def executar_sistema():
-    """Executa o sistema.py após login bem-sucedido"""
+    """Redireciona para a página do sistema"""
     try:
-        subprocess.Popen([sys.executable, 'sistema.py'])
-        # Retorna página visual ao invés de JSON puro
-        return render_template('iniciando.html')
+        # No servidor, não abre programa separado
+        # Apenas retorna a página do sistema funcional
+        return render_template('sistema.html', config=SISTEMA_CONFIG)
     except Exception as e:
-        return render_template('iniciando.html')
+        return render_template('iniciando.html', erro=str(e))
 
 
 
