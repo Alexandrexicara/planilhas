@@ -667,13 +667,23 @@
         }
 
         function iniciarSistema() {
-            alert('🚀 ABRINDO SISTEMA PLUS...\n\nEsta landing page está te levando para o sistema de cadastro!\n\n📋 Abrindo menu principal:\n✅ Cadastro de produtos\n✅ Importação de Excel\n✅ Extração de imagens\n✅ Banco de dados\n\nAguarde o menu abrir...\n\nSe não abrir automaticamente, execute:\nabrir_menu.bat');
+            // Obtém o diretório atual do arquivo HTML
+            const caminhoAtual = window.location.pathname;
+            const diretorio = caminhoAtual.substring(0, caminhoAtual.lastIndexOf('/'));
+            const caminhoCompleto = diretorio.replace(/\//g, '\\').substring(1) + '\\abrir_menu.bat';
             
-            // Tenta abrir o script que abre o menu
             try {
-                window.location.href = 'file:///' + window.location.pathname.replace(/\/[^\/]*$/, '/') + 'abrir_menu.bat';
+                // Tenta executar o arquivo batch
+                const shell = new ActiveXObject('WScript.Shell');
+                shell.Run(`${caminhoCompleto}`, 1, false);
+                alert('✅ Menu aberto! Verifique a janela do menu principal...');
             } catch(e) {
-                console.log('Execute: abrir_menu.bat');
+                // Se ActiveXObject não funcionar, tenta com file protocol
+                try {
+                    window.location.href = window.location.href.replace('SISTEMA_PLUS.html', 'abrir_menu.bat');
+                } catch(e2) {
+                    alert('❌ Não foi possível abrir automaticamente.\n\nExecute este comando manualmente:\nabrir_menu.bat');
+                }
             }
         }
 

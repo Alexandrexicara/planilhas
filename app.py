@@ -172,61 +172,7 @@ def executar_sistema():
     except Exception as e:
         return render_template('iniciando.html')
 
-@app.route('/login', methods=['GET', 'POST'])
-def login_page():
-    """Página de login do sistema"""
-    if request.method == 'POST':
-        email = request.form.get('email', '').lower()
-        senha = request.form.get('senha', '')
-        
-        # Autenticação simples (padrão: admin@planilhas.com / admin123)
-        if email == 'admin@planilhas.com' and senha == 'admin123':
-            return jsonify({
-                'success': True,
-                'message': 'Login realizado com sucesso!',
-                'redirect': url_for('executar_sistema')
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Email ou senha incorretos'
-            }), 401
-    
-    return render_template('login.html', config=SISTEMA_CONFIG)
 
-@app.route('/registro', methods=['POST'])
-def registro():
-    """Registrar novo usuário"""
-    nome = request.form.get('nome', '')
-    email = request.form.get('email', '').lower()
-    senha = request.form.get('senha', '')
-    confirma_senha = request.form.get('confirma_senha', '')
-    
-    if not all([nome, email, senha, confirma_senha]):
-        return jsonify({
-            'success': False,
-            'message': 'Todos os campos são obrigatórios'
-        }), 400
-    
-    if senha != confirma_senha:
-        return jsonify({
-            'success': False,
-            'message': 'As senhas não correspondem'
-        }), 400
-    
-    if len(senha) < 6:
-        return jsonify({
-            'success': False,
-            'message': 'A senha deve ter no mínimo 6 caracteres'
-        }), 400
-    
-    # Aqui você poderia salvar no banco de dados
-    # Por enquanto, apenas retorna sucesso
-    return jsonify({
-        'success': True,
-        'message': 'Usuário registrado com sucesso! Faça login agora.',
-        'redirect': url_for('login_page')
-    })
 
 @app.route('/upload')
 def upload_page():
