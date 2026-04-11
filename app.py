@@ -5,18 +5,32 @@ import sqlite3
 import zipfile
 import shutil
 import subprocess
+import time
+import importlib
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 import json
 from datetime import datetime
 
-# ✅ IMPORTA OS MÓDULOS DO SISTEMA
-try:
-    
-    import sistema
-    import sistema_plus
-except ImportError as e:
-    print(f"⚠️ Aviso: {e}")
+# Importacao segura dos modulos desktop (podem falhar em ambiente server/headless)
+MODULOS_IMPORTACAO = {}
+ERROS_IMPORTACAO = {}
+
+
+def importar_modulo(nome_modulo):
+    try:
+        modulo = importlib.import_module(nome_modulo)
+        MODULOS_IMPORTACAO[nome_modulo] = True
+        return modulo
+    except Exception as e:
+        MODULOS_IMPORTACAO[nome_modulo] = False
+        ERROS_IMPORTACAO[nome_modulo] = str(e)
+        print(f"[AVISO] Nao foi possivel importar {nome_modulo}: {e}")
+        return None
+
+
+sistema = importar_modulo('sistema')
+sistema_plus = importar_modulo('sistema_plus')
 
 app = Flask(__name__)
 app.secret_key = 'sistema_plus_2024'
@@ -166,12 +180,35 @@ def import_products_to_db(products_data):
     
     return imported_count
 
+
+def ambiente_desktop_disponivel():
+    """Indica se o servidor consegue abrir janelas desktop (GUI)."""
+    if os.name == 'nt':
+        return True
+    return bool(os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+
+
+def nome_ambiente_execucao():
+    """Nome amigavel do ambiente atual para mensagens."""
+    if os.environ.get('RENDER'):
+        return 'Render'
+    if os.name == 'nt':
+        return 'Windows'
+    return 'Servidor Linux sem interface grafica'
+
+
 def abrir_janela_sistema(script_name, nome_exibicao):
     """Abre um sistema desktop em uma nova janela sem bloquear o Flask."""
     script_path = os.path.join(BASE_DIR, script_name)
 
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"Arquivo nao encontrado: {script_name}")
+
+    if not ambiente_desktop_disponivel():
+        ambiente = nome_ambiente_execucao()
+        raise RuntimeError(
+            f"Nao e possivel abrir janela desktop no ambiente {ambiente}. Use a interface web."
+        )
 
     popen_kwargs = {
         'cwd': BASE_DIR,
@@ -188,6 +225,11 @@ def abrir_janela_sistema(script_name, nome_exibicao):
         popen_kwargs['start_new_session'] = True
 
     processo = subprocess.Popen([executable, script_path], **popen_kwargs)
+    time.sleep(0.6)
+    if processo.poll() is not None:
+        raise RuntimeError(
+            f"{nome_exibicao} encerrou logo apos iniciar (codigo {processo.returncode})."
+        )
 
     return {
         'nome': nome_exibicao,
@@ -204,40 +246,45 @@ def index():
 
 @app.route('/executar-sistema-legado')
 def executar_sistema_legado():
-    """Executa funções dos módulos dentro do MESMO processo Flask"""
+    """Executa funcoes dos modulos dentro do mesmo processo Flask."""
     try:
-        # ✅ EXECUTA AS FUNÇÕES DOS MÓDULOS IMPORTADOS
         dados_sistema = {
             'status': 'sucesso',
             'mensagem': 'Sistema iniciado com sucesso!',
             'timestamp': datetime.now().isoformat(),
             'modulos_carregados': []
         }
-        
-        # MÓDULO 1: sistema
+
+        # Modulo sistema
         try:
-            # Executa função de inicialização do sistema
-            dados_sistema['modulos_carregados'].append('✅ sistema.py carregado')
+            if sistema is not None:
+                dados_sistema['modulos_carregados'].append('[OK] sistema.py carregado')
+            else:
+                erro = ERROS_IMPORTACAO.get('sistema', 'modulo nao carregado')
+                dados_sistema['modulos_carregados'].append(f'[ERRO] sistema.py: {erro[:80]}')
         except Exception as e:
-            dados_sistema['modulos_carregados'].append(f'❌ sistema.py: {str(e)[:50]}')
-        
-        # MÓDULO 2: sistema_plus
+            dados_sistema['modulos_carregados'].append(f'[ERRO] sistema.py: {str(e)[:50]}')
+
+        # Modulo sistema_plus
         try:
-            # Executa função de inicialização do sistema plus
-            # Tenta buscar estatísticas
-            if hasattr(sistema_plus, 'contar_produtos_plus'):
-                total_produtos = sistema_plus.contar_produtos_plus()
-                dados_sistema['total_produtos'] = total_produtos
-            if hasattr(sistema_plus, 'contar_planilhas_plus'):
-                total_planilhas = sistema_plus.contar_planilhas_plus()
-                dados_sistema['total_planilhas'] = total_planilhas
-            dados_sistema['modulos_carregados'].append('✅ sistema_plus.py carregado')
+            if sistema_plus is not None and hasattr(sistema_plus, 'contar_produtos_plus'):
+                dados_sistema['total_produtos'] = sistema_plus.contar_produtos_plus()
+            if sistema_plus is not None and hasattr(sistema_plus, 'contar_planilhas_plus'):
+                dados_sistema['total_planilhas'] = sistema_plus.contar_planilhas_plus()
+
+            if sistema_plus is not None:
+                dados_sistema['modulos_carregados'].append('[OK] sistema_plus.py carregado')
+            else:
+                erro = ERROS_IMPORTACAO.get('sistema_plus', 'modulo nao carregado')
+                dados_sistema['modulos_carregados'].append(f'[ERRO] sistema_plus.py: {erro[:80]}')
         except Exception as e:
-            dados_sistema['modulos_carregados'].append(f'❌ sistema_plus.py: {str(e)[:50]}')
-        
-        return render_template('sistema.html', 
-                             config=SISTEMA_CONFIG,
-                             resultado=dados_sistema)
+            dados_sistema['modulos_carregados'].append(f'[ERRO] sistema_plus.py: {str(e)[:50]}')
+
+        return render_template(
+            'sistema.html',
+            config=SISTEMA_CONFIG,
+            resultado=dados_sistema
+        )
     except Exception as e:
         return render_template('iniciando.html', erro=str(e))
 
@@ -257,13 +304,17 @@ def executar_sistema():
         }
 
         scripts_para_abrir = scripts_por_alvo.get(alvo, scripts_por_alvo['both'])
+        ambiente_gui = ambiente_desktop_disponivel()
+        ambiente_nome = nome_ambiente_execucao()
         dados_sistema = {
             'status': 'sucesso',
             'mensagem': 'As janelas do sistema foram abertas com sucesso.',
             'timestamp': datetime.now().isoformat(),
             'modulos_carregados': [],
             'janelas_abertas': [],
-            'alvo': alvo
+            'alvo': alvo,
+            'ambiente_gui': ambiente_gui,
+            'ambiente_nome': ambiente_nome
         }
 
         for script_name, nome_exibicao in scripts_para_abrir:
@@ -282,20 +333,35 @@ def executar_sistema():
                 dados_sistema['modulos_carregados'].append(f'[ERRO] {script_name}: {str(e)[:80]}')
 
         try:
-            if hasattr(sistema_plus, 'contar_produtos_plus'):
+            if sistema_plus is not None and hasattr(sistema_plus, 'contar_produtos_plus'):
                 dados_sistema['total_produtos'] = sistema_plus.contar_produtos_plus()
-            if hasattr(sistema_plus, 'contar_planilhas_plus'):
+            if sistema_plus is not None and hasattr(sistema_plus, 'contar_planilhas_plus'):
                 dados_sistema['total_planilhas'] = sistema_plus.contar_planilhas_plus()
-            dados_sistema['modulos_carregados'].append('[OK] Estatisticas do sistema_plus.py carregadas')
+
+            if sistema_plus is not None:
+                dados_sistema['modulos_carregados'].append('[OK] Estatisticas do sistema_plus.py carregadas')
+            else:
+                erro = ERROS_IMPORTACAO.get('sistema_plus', 'modulo nao carregado')
+                dados_sistema['modulos_carregados'].append(
+                    f'[ERRO] Estatisticas indisponiveis (sistema_plus.py): {erro[:80]}'
+                )
         except Exception as e:
             dados_sistema['modulos_carregados'].append(f'[ERRO] Estatisticas do sistema_plus.py: {str(e)[:80]}')
+
+        if not ambiente_gui:
+            dados_sistema['status'] = 'erro'
+            dados_sistema['mensagem'] = (
+                f"Ambiente {ambiente_nome} nao suporta janelas desktop. "
+                "Use apenas as rotas web."
+            )
 
         if dados_sistema['janelas_abertas'] and all(
             item.get('status') == 'erro' for item in dados_sistema['janelas_abertas']
         ):
             dados_sistema['status'] = 'erro'
-            dados_sistema['mensagem'] = 'Nao foi possivel abrir as janelas solicitadas.'
-        elif any(item.get('status') == 'erro' for item in dados_sistema['janelas_abertas']):
+            if ambiente_gui:
+                dados_sistema['mensagem'] = 'Nao foi possivel abrir as janelas solicitadas.'
+        elif ambiente_gui and any(item.get('status') == 'erro' for item in dados_sistema['janelas_abertas']):
             dados_sistema['mensagem'] = 'Algumas janelas abriram e outras falharam.'
 
         return render_template('sistema.html',

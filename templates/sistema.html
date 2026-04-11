@@ -180,7 +180,11 @@
             
             <!-- Mostrar módulos carregados -->
             <h4>{{ resultado.mensagem if resultado else 'Sistema iniciado com sucesso!' }}</h4>
+            {% if resultado and resultado.ambiente_gui is defined and not resultado.ambiente_gui %}
+            <p>Ambiente detectado: {{ resultado.ambiente_nome }}. Este servidor nao abre janelas desktop.</p>
+            {% else %}
             <p>O Flask agora tenta abrir as janelas desktop do sistema original e do sistema plus.</p>
+            {% endif %}
 
             {% if resultado and resultado.janelas_abertas %}
             <div style="margin-top: 20px;">
