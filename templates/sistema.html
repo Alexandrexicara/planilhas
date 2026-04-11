@@ -229,6 +229,11 @@
             <p style="font-size: 12px; margin-top: 15px; color: #ccc;">
                 Versão {{ config.versao }} | Sistema Plus 2024-2025
             </p>
+            {% if resultado and resultado.build_info %}
+            <p style="font-size: 12px; margin-top: 5px; color: #bbb;">
+                Build: {{ resultado.build_info.commit[:12] if resultado.build_info.commit else 'local' }}
+            </p>
+            {% endif %}
         </div>
 
         <!-- Botão Voltar -->

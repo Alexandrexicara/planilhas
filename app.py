@@ -60,6 +60,12 @@ SISTEMA_CONFIG = {
     ]
 }
 
+BUILD_INFO = {
+    'render': bool(os.environ.get('RENDER')),
+    'service': os.environ.get('RENDER_SERVICE_NAME', ''),
+    'commit': os.environ.get('RENDER_GIT_COMMIT', ''),
+}
+
 def get_db_connection():
     """Conexão com o banco de dados"""
     conn = sqlite3.connect('banco_plus.db')
@@ -314,7 +320,8 @@ def executar_sistema():
             'janelas_abertas': [],
             'alvo': alvo,
             'ambiente_gui': ambiente_gui,
-            'ambiente_nome': ambiente_nome
+            'ambiente_nome': ambiente_nome,
+            'build_info': BUILD_INFO
         }
 
         for script_name, nome_exibicao in scripts_para_abrir:
