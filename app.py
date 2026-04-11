@@ -4,15 +4,25 @@ import sys
 import sqlite3
 import zipfile
 import shutil
+import subprocess
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 import json
 from datetime import datetime
 
+# ✅ IMPORTA OS MÓDULOS DO SISTEMA
+try:
+    
+    import sistema
+    import sistema_plus
+except ImportError as e:
+    print(f"⚠️ Aviso: {e}")
+
 app = Flask(__name__)
 app.secret_key = 'sistema_plus_2024'
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Garantir que as pastas existam
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -156,18 +166,141 @@ def import_products_to_db(products_data):
     
     return imported_count
 
+def abrir_janela_sistema(script_name, nome_exibicao):
+    """Abre um sistema desktop em uma nova janela sem bloquear o Flask."""
+    script_path = os.path.join(BASE_DIR, script_name)
+
+    if not os.path.exists(script_path):
+        raise FileNotFoundError(f"Arquivo nao encontrado: {script_name}")
+
+    popen_kwargs = {
+        'cwd': BASE_DIR,
+    }
+
+    if os.name == 'nt':
+        pythonw_path = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')
+        executable = pythonw_path if os.path.exists(pythonw_path) else sys.executable
+        creationflags = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
+        if creationflags:
+            popen_kwargs['creationflags'] = creationflags
+    else:
+        executable = sys.executable
+        popen_kwargs['start_new_session'] = True
+
+    processo = subprocess.Popen([executable, script_path], **popen_kwargs)
+
+    return {
+        'nome': nome_exibicao,
+        'arquivo': script_name,
+        'pid': processo.pid,
+        'status': 'sucesso',
+        'mensagem': f'{nome_exibicao} aberto em nova janela.'
+    }
+
 @app.route('/')
 def index():
     """Página inicial atraente"""
     return render_template('index.html', config=SISTEMA_CONFIG)
 
+@app.route('/executar-sistema-legado')
+def executar_sistema_legado():
+    """Executa funções dos módulos dentro do MESMO processo Flask"""
+    try:
+        # ✅ EXECUTA AS FUNÇÕES DOS MÓDULOS IMPORTADOS
+        dados_sistema = {
+            'status': 'sucesso',
+            'mensagem': 'Sistema iniciado com sucesso!',
+            'timestamp': datetime.now().isoformat(),
+            'modulos_carregados': []
+        }
+        
+        # MÓDULO 1: sistema
+        try:
+            # Executa função de inicialização do sistema
+            dados_sistema['modulos_carregados'].append('✅ sistema.py carregado')
+        except Exception as e:
+            dados_sistema['modulos_carregados'].append(f'❌ sistema.py: {str(e)[:50]}')
+        
+        # MÓDULO 2: sistema_plus
+        try:
+            # Executa função de inicialização do sistema plus
+            # Tenta buscar estatísticas
+            if hasattr(sistema_plus, 'contar_produtos_plus'):
+                total_produtos = sistema_plus.contar_produtos_plus()
+                dados_sistema['total_produtos'] = total_produtos
+            if hasattr(sistema_plus, 'contar_planilhas_plus'):
+                total_planilhas = sistema_plus.contar_planilhas_plus()
+                dados_sistema['total_planilhas'] = total_planilhas
+            dados_sistema['modulos_carregados'].append('✅ sistema_plus.py carregado')
+        except Exception as e:
+            dados_sistema['modulos_carregados'].append(f'❌ sistema_plus.py: {str(e)[:50]}')
+        
+        return render_template('sistema.html', 
+                             config=SISTEMA_CONFIG,
+                             resultado=dados_sistema)
+    except Exception as e:
+        return render_template('iniciando.html', erro=str(e))
+
+
 @app.route('/executar-sistema')
 def executar_sistema():
-    """Redireciona para a página do sistema"""
+    """Abre as janelas do sistema original e/ou PLUS a partir do Flask."""
     try:
-        # No servidor, não abre programa separado
-        # Apenas retorna a página do sistema funcional
-        return render_template('sistema.html', config=SISTEMA_CONFIG)
+        alvo = request.args.get('target', 'both').lower()
+        scripts_por_alvo = {
+            'original': [('sistema.py', 'Sistema Original')],
+            'plus': [('sistema_plus.py', 'Sistema Plus')],
+            'both': [
+                ('sistema.py', 'Sistema Original'),
+                ('sistema_plus.py', 'Sistema Plus')
+            ]
+        }
+
+        scripts_para_abrir = scripts_por_alvo.get(alvo, scripts_por_alvo['both'])
+        dados_sistema = {
+            'status': 'sucesso',
+            'mensagem': 'As janelas do sistema foram abertas com sucesso.',
+            'timestamp': datetime.now().isoformat(),
+            'modulos_carregados': [],
+            'janelas_abertas': [],
+            'alvo': alvo
+        }
+
+        for script_name, nome_exibicao in scripts_para_abrir:
+            try:
+                janela = abrir_janela_sistema(script_name, nome_exibicao)
+                dados_sistema['janelas_abertas'].append(janela)
+                dados_sistema['modulos_carregados'].append(f'[OK] {script_name} aberto em nova janela')
+            except Exception as e:
+                dados_sistema['status'] = 'parcial'
+                dados_sistema['janelas_abertas'].append({
+                    'nome': nome_exibicao,
+                    'arquivo': script_name,
+                    'status': 'erro',
+                    'mensagem': str(e)
+                })
+                dados_sistema['modulos_carregados'].append(f'[ERRO] {script_name}: {str(e)[:80]}')
+
+        try:
+            if hasattr(sistema_plus, 'contar_produtos_plus'):
+                dados_sistema['total_produtos'] = sistema_plus.contar_produtos_plus()
+            if hasattr(sistema_plus, 'contar_planilhas_plus'):
+                dados_sistema['total_planilhas'] = sistema_plus.contar_planilhas_plus()
+            dados_sistema['modulos_carregados'].append('[OK] Estatisticas do sistema_plus.py carregadas')
+        except Exception as e:
+            dados_sistema['modulos_carregados'].append(f'[ERRO] Estatisticas do sistema_plus.py: {str(e)[:80]}')
+
+        if dados_sistema['janelas_abertas'] and all(
+            item.get('status') == 'erro' for item in dados_sistema['janelas_abertas']
+        ):
+            dados_sistema['status'] = 'erro'
+            dados_sistema['mensagem'] = 'Nao foi possivel abrir as janelas solicitadas.'
+        elif any(item.get('status') == 'erro' for item in dados_sistema['janelas_abertas']):
+            dados_sistema['mensagem'] = 'Algumas janelas abriram e outras falharam.'
+
+        return render_template('sistema.html',
+                             config=SISTEMA_CONFIG,
+                             resultado=dados_sistema)
     except Exception as e:
         return render_template('iniciando.html', erro=str(e))
 

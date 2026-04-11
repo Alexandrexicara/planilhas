@@ -667,24 +667,8 @@
         }
 
         function iniciarSistema() {
-            // Obtém o diretório atual do arquivo HTML
-            const caminhoAtual = window.location.pathname;
-            const diretorio = caminhoAtual.substring(0, caminhoAtual.lastIndexOf('/'));
-            const caminhoCompleto = diretorio.replace(/\//g, '\\').substring(1) + '\\abrir_menu.bat';
-            
-            try {
-                // Tenta executar o arquivo batch
-                const shell = new ActiveXObject('WScript.Shell');
-                shell.Run(`${caminhoCompleto}`, 1, false);
-                alert('✅ Menu aberto! Verifique a janela do menu principal...');
-            } catch(e) {
-                // Se ActiveXObject não funcionar, tenta com file protocol
-                try {
-                    window.location.href = window.location.href.replace('SISTEMA_PLUS.html', 'abrir_menu.bat');
-                } catch(e2) {
-                    alert('❌ Não foi possível abrir automaticamente.\n\nExecute este comando manualmente:\nabrir_menu.bat');
-                }
-            }
+            // ✅ AGORA USA FLASK (app.py) - NÃO tenta abrir programa externo
+            window.location.href = '/executar-sistema';
         }
 
         function toggleMobileMenu() {

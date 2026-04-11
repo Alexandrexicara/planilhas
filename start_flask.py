@@ -7,26 +7,29 @@ import sys
 
 def check_dependencies():
     """Verifica se as dependências estão instaladas"""
-    required_packages = [
-        'flask', 'openpyxl', 'pillow', 'werkzeug'
-    ]
+    required_packages = {
+        'flask': 'flask',
+        'openpyxl': 'openpyxl',
+        'PIL': 'pillow',
+        'werkzeug': 'werkzeug',
+    }
     
     missing_packages = []
     
-    for package in required_packages:
+    for import_name, package_name in required_packages.items():
         try:
-            __import__(package)
+            __import__(import_name)
         except ImportError:
-            missing_packages.append(package)
+            missing_packages.append(package_name)
     
     if missing_packages:
-        print("❌ Dependências faltando:")
+        print("[ERRO] Dependencias faltando:")
         for package in missing_packages:
             print(f"   - {package}")
-        print("\n📦 Instale com: pip install -r requirements.txt")
+        print("\n[INFO] Instale com: pip install -r requirements.txt")
         return False
     
-    print("✅ Todas as dependências estão instaladas")
+    print("[OK] Todas as dependencias estao instaladas")
     return True
 
 def check_directories():
@@ -41,11 +44,11 @@ def check_directories():
     for dir_path in required_dirs:
         os.makedirs(dir_path, exist_ok=True)
     
-    print("✅ Estrutura de pastas verificada")
+    print("[OK] Estrutura de pastas verificada")
 
 def main():
     """Função principal"""
-    print("🚀 Iniciando Sistema Plus com Flask")
+    print("Iniciando Sistema Plus com Flask")
     print("=" * 50)
     
     # Verificar dependências
@@ -58,23 +61,23 @@ def main():
     # Importar e iniciar o app
     try:
         from app import app
-        print("✅ Aplicação Flask carregada com sucesso")
-        print("\n🌐 Acessando o sistema:")
+        print("[OK] Aplicacao Flask carregada com sucesso")
+        print("\nAcessando o sistema:")
         print("   - Local: http://localhost:5000")
         print("   - Rede: http://0.0.0.0:5000")
-        print("\n📋 Funcionalidades disponíveis:")
+        print("\nFuncionalidades disponiveis:")
         print("   - Página inicial com design moderno")
         print("   - Importação de Excel com extração de imagens")
         print("   - Catálogo web de produtos")
         print("   - Sistema de R$5.000 por R$4.500")
-        print("\n⚠️  Pressione Ctrl+C para parar o servidor")
+        print("\n[INFO] Pressione Ctrl+C para parar o servidor")
         print("=" * 50)
         
         # Iniciar servidor
         app.run(debug=True, host='0.0.0.0', port=5000)
         
     except Exception as e:
-        print(f"❌ Erro ao iniciar a aplicação: {e}")
+        print(f"[ERRO] Erro ao iniciar a aplicacao: {e}")
         sys.exit(1)
 
 if __name__ == '__main__':
