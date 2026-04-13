@@ -1,21 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('templates', 'templates'), ('static', 'static')]
+datas = []
 binaries = []
-hiddenimports = ['sistema', 'sistema_plus', 'flask', 'werkzeug', 'jinja2', 'openpyxl', 'PIL', 'sqlite3']
+hiddenimports = ['flask', 'webbrowser']
 tmp_ret = collect_all('flask')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('werkzeug')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('jinja2')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('openpyxl')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['app.py'],
+    ['launcher.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -39,13 +35,14 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['icon.ico'],
 )

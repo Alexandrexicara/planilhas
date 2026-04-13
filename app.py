@@ -7,6 +7,9 @@ import shutil
 import subprocess
 import time
 import importlib
+import threading
+import webbrowser
+import runpy
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 import json
@@ -34,6 +37,7 @@ sistema_plus = importar_modulo('sistema_plus')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IS_VERCEL = bool(os.environ.get('VERCEL'))
+IS_RENDER = bool(os.environ.get('RENDER'))
 RUNTIME_DIR = os.path.join('/tmp', 'planilhas') if IS_VERCEL else BASE_DIR
 UPLOAD_DIR = os.path.join(RUNTIME_DIR, 'uploads')
 TEMP_IMAGES_DIR = os.path.join(RUNTIME_DIR, 'temp_images')
@@ -62,7 +66,7 @@ if IS_VERCEL and os.path.exists(BUNDLED_DB_PATH) and not os.path.exists(DB_PATH)
 
 # Configuracao do sistema
 SISTEMA_CONFIG = {
-    'nome': 'Sistema Plus de Importacao',
+    'nome': 'planilhas.com',
     'valor_original': 5000.00,
     'valor_promocional': 4500.00,
     'desconto': 10,
@@ -77,7 +81,7 @@ SISTEMA_CONFIG = {
 }
 
 BUILD_INFO = {
-    'render': bool(os.environ.get('RENDER')),
+    'render': IS_RENDER,
     'service': os.environ.get('RENDER_SERVICE_NAME', ''),
     'vercel': IS_VERCEL,
     'region': os.environ.get('VERCEL_REGION', ''),
@@ -89,6 +93,18 @@ DESKTOP_POLICY = {
     'max_maquinas': 10,
     'atualizacao_requer_compra': True
 }
+
+
+def abrir_navegador_em_background(url, atraso_segundos=1.2):
+    """Abre o navegador sem travar o startup do Flask."""
+    def _abrir():
+        time.sleep(atraso_segundos)
+        try:
+            webbrowser.open(url, new=1)
+        except Exception as e:
+            print(f"[AVISO] Nao foi possivel abrir navegador automaticamente: {e}")
+
+    threading.Thread(target=_abrir, daemon=True).start()
 
 def get_db_connection():
     """Conexao com o banco de dados"""
@@ -266,8 +282,10 @@ def nome_ambiente_execucao():
 def abrir_janela_sistema(script_name, nome_exibicao):
     """Abre um sistema desktop em uma nova janela sem bloquear o Flask."""
     script_path = os.path.join(BASE_DIR, script_name)
+    module_name = os.path.splitext(script_name)[0]
+    running_frozen = bool(getattr(sys, 'frozen', False))
 
-    if not os.path.exists(script_path):
+    if not os.path.exists(script_path) and not running_frozen:
         raise FileNotFoundError(f"Arquivo nao encontrado: {script_name}")
 
     if not ambiente_desktop_disponivel():
@@ -290,7 +308,14 @@ def abrir_janela_sistema(script_name, nome_exibicao):
         executable = sys.executable
         popen_kwargs['start_new_session'] = True
 
-    processo = subprocess.Popen([executable, script_path], **popen_kwargs)
+    if os.path.exists(script_path):
+        cmd = [executable, script_path]
+    elif running_frozen:
+        cmd = [executable, "--run-module", module_name]
+    else:
+        raise FileNotFoundError(f"Arquivo nao encontrado: {script_name}")
+
+    processo = subprocess.Popen(cmd, **popen_kwargs)
     time.sleep(0.6)
     if processo.poll() is not None:
         raise RuntimeError(
@@ -378,7 +403,13 @@ def executar_sistema():
         scripts_por_alvo = {
             'original': [('sistema.py', 'Sistema Original')],
             'plus': [('sistema_plus.py', 'Sistema Plus')],
+            'menu': [('menu_principal.py', 'Menu Principal')],
             'both': [
+                ('sistema.py', 'Sistema Original'),
+                ('sistema_plus.py', 'Sistema Plus')
+            ],
+            'all': [
+                ('menu_principal.py', 'Menu Principal'),
                 ('sistema.py', 'Sistema Original'),
                 ('sistema_plus.py', 'Sistema Plus')
             ]
@@ -529,7 +560,39 @@ def get_stats():
     conn.close()
     return jsonify(stats)
 
-if __name__ == '__main__':
+
+def executar_modulo_desktop(module_name):
+    """Executa um modulo desktop como se fosse script (__main__)."""
+    try:
+        runpy.run_module(module_name, run_name="__main__")
+        return 0
+    except Exception as e:
+        print(f"[ERRO] Falha ao executar modulo {module_name}: {e}")
+        return 1
+
+
+def executar_app():
+    """Inicializa o Flask em modo desktop/web sem abrir console de debug."""
     port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, host='0.0.0.0', port=port)
+    debug_flag = str(os.environ.get("FLASK_DEBUG", "0")).lower() in {"1", "true", "yes", "on"}
+    host = '0.0.0.0' if (IS_VERCEL or IS_RENDER) else '127.0.0.1'
+    auto_open_browser = (
+        str(os.environ.get("AUTO_OPEN_BROWSER", "1")).lower() in {"1", "true", "yes", "on"}
+    )
+
+    if auto_open_browser and host == '127.0.0.1':
+        abrir_navegador_em_background(f"http://127.0.0.1:{port}")
+
+    app.run(
+        debug=debug_flag,
+        host=host,
+        port=port,
+        use_reloader=False
+    )
+
+
+if __name__ == '__main__':
+    if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
+        sys.exit(executar_modulo_desktop(sys.argv[2]))
+    executar_app()
 

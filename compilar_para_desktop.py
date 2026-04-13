@@ -14,7 +14,7 @@ def main():
     projeto = Path("e:/planilhas.com")
     desktop = Path(os.path.expanduser("~/Desktop"))
     dist_dir = projeto / "dist"
-    exe_src = dist_dir / "app.exe"
+    exe_src = dist_dir / "Planilhas.exe"
     exe_dest = desktop / "Planilhas.exe"
     
     print("=" * 60)
@@ -33,12 +33,24 @@ def main():
         cmd = [
             sys.executable, "-m", "PyInstaller",
             "--onefile",
+            "--windowed",
             "--name=Planilhas",
+            "--add-data=templates;templates",
+            "--add-data=static;static",
+            "--add-data=banco_plus.db;.",
+            "--add-data=banco.db;.",
+            "--add-data=usuarios.db;.",
             "--collect-all=flask",
             "--collect-all=werkzeug",
+            "--collect-all=jinja2",
             "--collect-all=openpyxl",
             "--hidden-import=sistema",
             "--hidden-import=sistema_plus",
+            "--hidden-import=menu_principal",
+            "--hidden-import=usuarios_db",
+            "--hidden-import=gerenciamento_usuarios",
+            "--hidden-import=sistema_online_offline",
+            "--hidden-import=banco_offline",
             "--clean",
             "app.py"
         ]

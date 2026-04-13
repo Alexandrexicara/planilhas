@@ -1,63 +1,87 @@
-import subprocess
-import sys
 import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
+
 def get_desktop_path():
-    """Retorna o caminho da área de trabalho"""
-    desktop = Path.home() / "Desktop"
-    return str(desktop)
+    return str(Path.home() / "Desktop")
+
 
 def build_executable():
-    """Gera o executável Windows do sistema"""
-    print("🚀 Gerando executável Windows...")
-    
-    # Comando pyinstaller
-    cmd = [
-        sys.executable, '-m', 'PyInstaller',
-        '--onefile',           # Gera um único arquivo
-        '--windowed',          # Sem console
-        '--name=SistemaPlanilhas',  # Nome do executável
-        'app.py'
+    print("Gerando executavel Windows...")
+
+    hidden_imports = [
+        "sistema",
+        "sistema_plus",
+        "usuarios_db",
+        "gerenciamento_usuarios",
+        "sistema_online_offline",
+        "banco_offline",
+        "openpyxl",
+        "zipfile",
+        "sqlite3",
+        "json",
+        "datetime",
+        "tkinter",
     ]
-    
-    # Adiciona ícone se existir
-    if os.path.exists('icon.ico'):
-        cmd.insert(-1, '--icon=icon.ico')
-        print("🎨 Usando ícone personalizado...")
-    
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "PyInstaller",
+        "--onefile",
+        "--windowed",
+        "--name=Planilhas",
+        "--add-data=banco_plus.db;.",
+        "--add-data=banco.db;.",
+        "--add-data=usuarios.db;.",
+        "--collect-all=openpyxl",
+        "--distpath=dist",
+        "--workpath=build",
+        "--specpath=.",
+        "--noconfirm",
+        "--clean",
+        "--noupx",
+    ]
+
+    for hidden_import in hidden_imports:
+        cmd.extend(["--hidden-import", hidden_import])
+
+    if os.path.exists("icon.ico"):
+        cmd.extend(["--icon", "icon.ico"])
+
+    cmd.append("menu_principal.py")
+
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print("✅ Executável gerado com sucesso!")
-        
-        # Copia para Desktop
-        exe_path = "dist/SistemaPlanilhas.exe"
+        subprocess.run(cmd, capture_output=False, text=True, check=True)
+        print("Executavel gerado com sucesso.")
+
+        exe_path = os.path.join("dist", "Planilhas.exe")
         desktop_path = get_desktop_path()
-        desktop_exe = os.path.join(desktop_path, "SistemaPlanilhas.exe")
-        
+        desktop_exe = os.path.join(desktop_path, "Planilhas.exe")
+
         if os.path.exists(exe_path):
             shutil.copy2(exe_path, desktop_exe)
-            print(f"📁 Copiado para Desktop: {desktop_exe}")
-            print(f"🎯 Acesse o atalho na área de trabalho!")
-        
+            print(f"Copiado para Desktop: {desktop_exe}")
+
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Erro ao gerar executável: {e}")
-        print(f"Saída: {e.stdout}")
-        print(f"Erro: {e.stderr}")
+        print(f"Erro ao gerar executavel: {e}")
         return False
 
+
 if __name__ == "__main__":
-    # Verifica se pyinstaller está instalado
     try:
-        import PyInstaller
-        print("✅ PyInstaller encontrado")
+        import PyInstaller  # noqa: F401
     except ImportError:
-        print("❌ PyInstaller não encontrado. Instalando...")
-        subprocess.run([sys.executable, '-m', 'pip', 'install', 'pyinstaller'])
-    
-    # Gera o executável
-    build_executable()
-    
-    input("\nPressione Enter para sair...")
+        print("PyInstaller nao encontrado. Instalando...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "pyinstaller"], check=True)
+
+    if os.path.exists("build"):
+        shutil.rmtree("build")
+
+    success = build_executable()
+    print("Concluido." if success else "Falhou.")
+    input("Pressione Enter para sair...")

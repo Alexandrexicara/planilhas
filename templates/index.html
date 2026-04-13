@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}Sistema Plus - Importação Automática de Excel{% endblock %}
+{% block title %}planilhas.com - Importação Automática de Excel{% endblock %}
 
 {% block content %}
 <!-- Hero Section -->
 <section class="hero-section">
     <div class="container">
         <h1 class="hero-title">
-            <i class="fas fa-magic"></i> Sistema Plus
+            <img src="{{ url_for('static', filename='branding/logo-planilhas.png') }}" alt="Logo planilhas.com" style="width: 56px; height: 56px; border-radius: 12px; margin-right: 8px; object-fit: cover;">
+            planilhas.com
         </h1>
         <p class="hero-subtitle">
             Importação automática de Excel com extração inteligente de imagens
@@ -25,7 +26,7 @@
                         <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
                         <p class="mb-4">Pagamento único, acesso vitalício</p>
                         <a href="/executar-sistema" class="btn btn-light btn-lg px-5">
-                            <i class="fas fa-rocket"></i> Iniciar Sistema
+                            <i class="fas fa-play"></i> Começar Agora
                         </a>
                         <small class="d-block mt-3">
                             <i class="fas fa-shield-alt"></i> Garantia de 7 dias | Suporte dedicado
@@ -238,7 +239,7 @@
                 </p>
                 <div class="d-flex justify-content-center gap-3">
                     <a href="/executar-sistema" class="btn btn-gradient btn-lg">
-                        <i class="fas fa-play"></i> Iniciar Agora
+                        <i class="fas fa-play"></i> Começar Agora
                     </a>
                     <a href="{{ url_for('catalog') }}" class="btn btn-outline-primary btn-lg">
                         <i class="fas fa-plus-circle"></i> Novos Produtos

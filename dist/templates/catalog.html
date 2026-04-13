@@ -1,0 +1,347 @@
+{% extends "base.html" %}
+
+{% block title %}Novos Produtos DEV - Sistema Plus{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h2 class="mb-0">
+                                <i class="fas fa-box text-primary"></i> 
+                                Novos Produtos DEV
+                            </h2>
+                            <p class="text-muted mb-0">
+                                Explore nossos novos sistemas e aplicações
+                            </p>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <button class="btn btn-outline-primary" onclick="refreshCatalog()">
+                                <i class="fas fa-sync-alt"></i> Atualizar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text">
+                                    <i class="fas fa-search"></i>
+                                </span>
+                                <input type="text" class="form-control" id="searchInput" 
+                                       placeholder="Buscar sistema ou aplicação...">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <select class="form-select" id="filterSelect">
+                                <option value="">Todos os produtos</option>
+                                <option value="sistema">Sistema</option>
+                                <option value="app">Aplicação</option>
+                                <option value="tool">Ferramenta</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="row g-4" id="productsGrid">
+        {% for product in products %}
+        <div class="col-md-6 col-lg-4 product-item" 
+             data-codigo="{{ product.codigo|lower }}" 
+             data-descricao="{{ product.descricao|lower }}" 
+             data-cliente="{{ product.cliente|lower }}">
+            <div class="card product-card h-100 border-0 shadow-sm">
+                <div class="position-relative">
+                    {% if product.picture %}
+                    <img src="{{ product.picture }}" alt="{{ product.descricao }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top d-flex align-items-center justify-content-center bg-light" style="height: 200px;">
+                        <i class="fas fa-box fa-3x text-muted"></i>
+                    </div>
+                    {% endif %}
+                    <div class="badge bg-success position-absolute top-0 end-0 m-2">
+                        Novo
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <h5 class="card-title">{{ product.codigo or 'Novo Sistema' }}</h5>
+                    <p class="card-text text-muted small">{{ product.descricao[:80] }}{% if product.descricao|length > 80 %}...{% endif %}</p>
+                    
+                    <div class="row small text-muted mb-3">
+                        <div class="col-6">
+                            <i class="fas fa-star text-warning"></i> Premium
+                        </div>
+                        <div class="col-6">
+                            <i class="fas fa-check-circle text-success"></i> Pronto
+                        </div>
+                    </div>
+                    
+                    <!-- Preço -->
+                    <div class="price-section mb-3">
+                        <h4 class="text-primary mb-2">
+                            <strong>R$ 499,00</strong>
+                        </h4>
+                        <small class="text-muted">
+                            <i class="fas fa-check-circle text-success"></i> Licença vitalícia
+                        </small>
+                    </div>
+                </div>
+                
+                <div class="card-footer bg-transparent border-top">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-gradient" onclick="comprarAgora('{{ product.codigo }}', '{{ product.id }}')">
+                            <i class="fas fa-shopping-cart"></i> Comprar Agora
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewDetails('{{ product.codigo }}', '{{ product.descricao }}', '{{ product.id }}')">
+                            <i class="fas fa-info-circle"></i> Ver Detalhes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Empty State -->
+    {% if products|length == 0 %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                    <h4>Nenhum Produto Disponível</h4>
+                    <p class="text-muted">
+                        Novos sistemas serão adicionados em breve.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailsTitle">Detalhes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detailsContent">
+                <!-- Conteúdo carregado dinamicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-gradient" onclick="abrirPagamento()">
+                    <i class="fas fa-credit-card"></i> Comprar Agora
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-credit-card"></i> Finalizar Compra
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>Produto: <strong id="payProductName"></strong></h6>
+                        <h6>Preço: <span class="text-primary"><strong>R$ 499,00</strong></span></h6>
+                    </div>
+                </div>
+
+                <h6 class="mb-3"><i class="fas fa-credit-card"></i> Escolha o Método de Pagamento</h6>
+                <div class="btn-group-vertical w-100 mb-3" role="group">
+                    <input type="radio" class="btn-check" name="payment" id="pix" value="pix" checked>
+                    <label class="btn btn-outline-primary text-start" for="pix">
+                        <i class="fas fa-qrcode"></i> <strong>PIX</strong> - Instantâneo
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="payment" id="cartao" value="cartao">
+                    <label class="btn btn-outline-primary text-start" for="cartao">
+                        <i class="fas fa-credit-card"></i> <strong>Cartão de Crédito</strong> - Até 12x
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="payment" id="boleto" value="boleto">
+                    <label class="btn btn-outline-primary text-start" for="boleto">
+                        <i class="fas fa-barcode"></i> <strong>Boleto</strong> - Pague depois
+                    </label>
+                </div>
+
+                <!-- PIX -->
+                <div id="pixContent">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <p class="text-muted mb-3">Escaneie o QR Code com seu banco ou app de pagamento:</p>
+                            <div id="qrcodeContainer" style="background: white; padding: 20px; border-radius: 10px;">
+                                <div style="width: 200px; height: 200px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+                                    <i class="fas fa-qrcode fa-5x text-muted"></i>
+                                </div>
+                            </div>
+                            <p class="mt-3 small text-muted">QR Code gerado automaticamente</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cartão -->
+                <div id="cartaoContent" style="display: none;">
+                    <div class="mb-3">
+                        <label class="form-label">Número do Cartão</label>
+                        <input type="text" class="form-control" placeholder="0000 0000 0000 0000">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Validade (MM/YY)</label>
+                            <input type="text" class="form-control" placeholder="MM/YY">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">CVV</label>
+                            <input type="text" class="form-control" placeholder="000">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Boleto -->
+                <div id="boletoContent" style="display: none;">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Boleto será gerado após confirmação.</strong><br>
+                        O acesso ao sistema será liberado assim que o pagamento for compensado.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" onclick="finalizarPagamento()">
+                    <i class="fas fa-check"></i> Confirmar Pagamento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentProduct = null;
+const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'), { backdrop: 'static' });
+const paymentModal = new bootstrap.Modal(document.getElementById('paymentModal'), { backdrop: 'static' });
+
+// Mostrar/ocultar métodos de pagamento
+document.querySelectorAll('input[name="payment"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        document.getElementById('pixContent').style.display = this.value === 'pix' ? 'block' : 'none';
+        document.getElementById('cartaoContent').style.display = this.value === 'cartao' ? 'block' : 'none';
+        document.getElementById('boletoContent').style.display = this.value === 'boleto' ? 'block' : 'none';
+    });
+});
+
+// Buscar e filtrar
+document.getElementById('searchInput').addEventListener('input', filterProducts);
+document.getElementById('filterSelect').addEventListener('change', filterProducts);
+
+function filterProducts() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const filter = document.getElementById('filterSelect').value.toLowerCase();
+    
+    document.querySelectorAll('.product-item').forEach(item => {
+        const codigo = item.dataset.codigo;
+        const descricao = item.dataset.descricao;
+        
+        const matchSearch = codigo.includes(searchTerm) || descricao.includes(searchTerm);
+        const matchFilter = !filter || codigo.includes(filter);
+        
+        item.style.display = (matchSearch && matchFilter) ? 'block' : 'none';
+    });
+}
+
+// Comprar Agora
+function comprarAgora(codigo, productId) {
+    currentProduct = { codigo, productId, nome: codigo };
+    document.getElementById('payProductName').textContent = codigo;
+    
+    // Resetar método de pagamento
+    document.getElementById('pix').checked = true;
+    document.getElementById('pixContent').style.display = 'block';
+    document.getElementById('cartaoContent').style.display = 'none';
+    document.getElementById('boletoContent').style.display = 'none';
+    
+    paymentModal.show();
+}
+
+// Ver Detalhes
+function viewDetails(codigo, descricao, productId) {
+    currentProduct = { codigo, productId, nome: codigo };
+    
+    document.getElementById('detailsTitle').textContent = codigo;
+    document.getElementById('detailsContent').innerHTML = `
+        <div>
+            <h6 class="mb-3">${codigo}</h6>
+            <p class="text-muted mb-3">${descricao}</p>
+            <div class="alert alert-success">
+                ✅ Licença vitalícia<br>
+                ✅ Atualizações incluídas<br>
+                ✅ Suporte prioritário<br>
+                ✅ Acesso imediato após pagamento
+            </div>
+        </div>
+    `;
+    detailsModal.show();
+}
+
+function abrirPagamento() {
+    detailsModal.hide();
+    // Pequeno delay para evitar conflito de modais
+    setTimeout(() => {
+        document.getElementById('pix').checked = true;
+        document.getElementById('pixContent').style.display = 'block';
+        document.getElementById('cartaoContent').style.display = 'none';
+        document.getElementById('boletoContent').style.display = 'none';
+        paymentModal.show();
+    }, 300);
+}
+
+// Finalizar Pagamento
+function finalizarPagamento() {
+    const metodo = document.querySelector('input[name="payment"]:checked').value;
+    const metodoTexto = metodo === 'pix' ? 'PIX' : metodo === 'cartao' ? 'Cartão' : 'Boleto';
+    
+    alert(`✅ Pagamento por ${metodoTexto} confirmado!\n\nVocê receberá um email com as instruções de acesso ao ${currentProduct.nome}\n\nObrigado pela compra!`);
+    
+    paymentModal.hide();
+}
+
+// Atualizar catálogo
+function refreshCatalog() {
+    location.reload();
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciando Sistema</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .loading-container {
+            text-align: center;
+            background: white;
+            border-radius: 20px;
+            padding: 60px 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+        }
+        .spinner {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 30px;
+            border: 8px solid rgba(102, 126, 234, 0.1);
+            border-top: 8px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .loading-subtext {
+            font-size: 14px;
+            color: #999;
+            margin-bottom: 30px;
+        }
+        .success-message {
+            display: none;
+            animation: fadeIn 0.5s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 30px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            animation: scaleIn 0.5s ease-out;
+        }
+        @keyframes scaleIn {
+            from { 
+                transform: scale(0);
+                opacity: 0;
+            }
+            to { 
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        .success-text {
+            font-size: 20px;
+            font-weight: 600;
+            color: #10b981;
+            margin-bottom: 15px;
+        }
+        .countdown {
+            font-size: 14px;
+            color: #999;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <!-- Estado de Carregamento -->
+        <div id="loadingState">
+            <div class="spinner"></div>
+            <div class="loading-text">
+                <i class="fas fa-rocket" style="color: #667eea;"></i> Iniciando Sistema
+            </div>
+            <div class="loading-subtext">
+                A janela do sistema vai abrir em alguns segundos...
+            </div>
+            <div class="text-muted" style="font-size: 12px;">
+                <i class="fas fa-info-circle"></i> Não feche esta aba
+            </div>
+        </div>
+
+        <!-- Estado de Sucesso -->
+        <div id="successState" class="success-message">
+            <div class="success-icon">
+                <i class="fas fa-check"></i>
+            </div>
+            <div class="success-text">Sistema Iniciado!</div>
+            <div class="loading-subtext">
+                A janela do sistema foi aberta.
+            </div>
+            <div class="countdown">
+                Fechando em <span id="countdown">5</span> segundos...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simular execução do sistema
+        setTimeout(() => {
+            // Esconder carregamento
+            document.getElementById('loadingState').style.display = 'none';
+            
+            // Mostrar sucesso
+            document.getElementById('successState').style.display = 'block';
+            
+            // Countdown para fechar
+            let count = 5;
+            const countdownEl = document.getElementById('countdown');
+            
+            const interval = setInterval(() => {
+                count--;
+                countdownEl.textContent = count;
+                
+                if (count <= 0) {
+                    clearInterval(interval);
+                    window.close();
+                }
+            }, 1000);
+            
+        }, 2000);
+    </script>
+</body>
+</html>

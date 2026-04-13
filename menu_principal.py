@@ -361,24 +361,20 @@ class MenuPrincipal:
         btn_sair.pack(pady=8)
         
     def abrir_sistema_original(self):
-        """Abre o sistema original em novo processo"""
+        """Abre o sistema original na web"""
         try:
-            self.janela.withdraw()  # Esconder menu principal
-            subprocess.Popen([sys.executable, "sistema.py"])
-            self.janela.after(1000, self.verificar_sistema_ativo, "original")
+            import webbrowser
+            webbrowser.open('http://localhost:5000')
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível abrir o sistema original: {e}")
-            self.janela.deiconify()
+            messagebox.showerror("Erro", f"Não foi possível abrir o sistema: {e}")
     
     def abrir_sistema_plus(self):
-        """Abre o sistema plus em novo processo"""
+        """Abre o sistema web na aba de produtos"""
         try:
-            self.janela.withdraw()  # Esconder menu principal
-            subprocess.Popen([sys.executable, "sistema_plus.py"])
-            self.janela.after(1000, self.verificar_sistema_ativo, "plus")
+            import webbrowser
+            webbrowser.open('http://localhost:5000/catalog')
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível abrir o sistema plus: {e}")
-            self.janela.deiconify()
+            messagebox.showerror("Erro", f"Não foi possível abrir o sistema: {e}")
     
     def gerenciar_usuarios(self):
         """Abre tela de gerenciamento de usuários (admin only)"""
