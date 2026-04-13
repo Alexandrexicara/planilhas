@@ -32,43 +32,61 @@ def importar_modulo(nome_modulo):
 sistema = importar_modulo('sistema')
 sistema_plus = importar_modulo('sistema_plus')
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+IS_VERCEL = bool(os.environ.get('VERCEL'))
+RUNTIME_DIR = os.path.join('/tmp', 'planilhas') if IS_VERCEL else BASE_DIR
+UPLOAD_DIR = os.path.join(RUNTIME_DIR, 'uploads')
+TEMP_IMAGES_DIR = os.path.join(RUNTIME_DIR, 'temp_images')
+STATIC_UPLOADS_DIR = os.path.join(RUNTIME_DIR, 'static_uploads')
+BUNDLED_DB_PATH = os.path.join(BASE_DIR, 'banco_plus.db')
+DB_PATH = os.path.join(RUNTIME_DIR, 'banco_plus.db') if IS_VERCEL else BUNDLED_DB_PATH
+
 app = Flask(__name__)
 app.secret_key = 'sistema_plus_2024'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Garantir que as pastas existam
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs('static/uploads', exist_ok=True)
-os.makedirs('static/images', exist_ok=True)
-os.makedirs('templates', exist_ok=True)
+# Pastas de runtime (serverless so pode escrever em /tmp)
+for runtime_path in [RUNTIME_DIR, UPLOAD_DIR, TEMP_IMAGES_DIR, STATIC_UPLOADS_DIR]:
+    try:
+        os.makedirs(runtime_path, exist_ok=True)
+    except Exception as e:
+        print(f"[AVISO] Nao foi possivel criar pasta {runtime_path}: {e}")
 
-# Configuração do sistema
+# Em Vercel, copia o banco empacotado para /tmp na primeira execucao
+if IS_VERCEL and os.path.exists(BUNDLED_DB_PATH) and not os.path.exists(DB_PATH):
+    try:
+        shutil.copy2(BUNDLED_DB_PATH, DB_PATH)
+    except Exception as e:
+        print(f"[AVISO] Nao foi possivel copiar banco para runtime: {e}")
+
+# Configuracao do sistema
 SISTEMA_CONFIG = {
-    'nome': 'Sistema Plus de Importação',
+    'nome': 'Sistema Plus de Importacao',
     'valor_original': 5000.00,
     'valor_promocional': 4500.00,
     'desconto': 10,
     'versao': '2.0',
     'recursos': [
-        'Importação automática de Excel',
-        'Extração automática de imagens',
-        'Catálogo web completo',
-        'Gestão de produtos',
-        'Relatórios detalhados'
+        'Importacao automatica de Excel',
+        'Extracao automatica de imagens',
+        'Catalogo web completo',
+        'Gestao de produtos',
+        'Relatorios detalhados'
     ]
 }
 
 BUILD_INFO = {
     'render': bool(os.environ.get('RENDER')),
     'service': os.environ.get('RENDER_SERVICE_NAME', ''),
-    'commit': os.environ.get('RENDER_GIT_COMMIT', ''),
+    'vercel': IS_VERCEL,
+    'region': os.environ.get('VERCEL_REGION', ''),
+    'commit': os.environ.get('RENDER_GIT_COMMIT', '') or os.environ.get('VERCEL_GIT_COMMIT_SHA', ''),
 }
 
 def get_db_connection():
-    """Conexão com o banco de dados"""
-    conn = sqlite3.connect('banco_plus.db')
+    """Conexao com o banco de dados"""
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -93,8 +111,8 @@ def extract_images_from_excel(excel_path, output_dir):
     return images
 
 def read_excel_with_images(excel_path):
-    """Lê Excel e associa imagens automaticamente"""
-    temp_dir = "temp_images"
+    """Le Excel e associa imagens automaticamente"""
+    temp_dir = TEMP_IMAGES_DIR
     os.makedirs(temp_dir, exist_ok=True)
     
     # 1. Extrair imagens
@@ -107,7 +125,7 @@ def read_excel_with_images(excel_path):
     rows = []
     headers = []
     
-    # Pegar cabeçalhos
+    # Pegar cabecalhos
     for cell in sheet[1]:
         if cell.value:
             headers.append(str(cell.value).strip())
@@ -120,7 +138,7 @@ def read_excel_with_images(excel_path):
                 row_data[headers[i]] = str(value) if value is not None else ""
         
         # 3. Associar imagem por ordem
-        img_index = row_idx - 2  # Ajuste para índice zero
+        img_index = row_idx - 2  # Ajuste para indice zero
         if img_index < len(images):
             row_data['picture'] = images[img_index]
         else:
@@ -136,10 +154,10 @@ def save_image_to_static(image_path):
         return None
     
     filename = os.path.basename(image_path)
-    new_path = f"static/uploads/{filename}"
+    new_path = os.path.join(STATIC_UPLOADS_DIR, filename)
     
     shutil.copy(image_path, new_path)
-    return f"/static/uploads/{filename}"
+    return new_path if IS_VERCEL else f"/static/uploads/{filename}"
 
 def import_products_to_db(products_data):
     """Importa produtos para o banco de dados"""
@@ -180,9 +198,9 @@ def import_products_to_db(products_data):
     conn.commit()
     conn.close()
     
-    # Limpar pasta temporária
-    if os.path.exists("temp_images"):
-        shutil.rmtree("temp_images")
+    # Limpar pasta temporaria
+    if os.path.exists(TEMP_IMAGES_DIR):
+        shutil.rmtree(TEMP_IMAGES_DIR)
     
     return imported_count
 
@@ -198,6 +216,8 @@ def nome_ambiente_execucao():
     """Nome amigavel do ambiente atual para mensagens."""
     if os.environ.get('RENDER'):
         return 'Render'
+    if os.environ.get('VERCEL'):
+        return 'Vercel'
     if os.name == 'nt':
         return 'Windows'
     return 'Servidor Linux sem interface grafica'
@@ -247,7 +267,7 @@ def abrir_janela_sistema(script_name, nome_exibicao):
 
 @app.route('/')
 def index():
-    """Página inicial atraente"""
+    """Pagina inicial atraente"""
     return render_template('index.html', config=SISTEMA_CONFIG)
 
 @app.route('/executar-sistema-legado')
@@ -381,7 +401,7 @@ def executar_sistema():
 
 @app.route('/upload')
 def upload_page():
-    """Página de upload"""
+    """Pagina de upload"""
     return render_template('upload.html', config=SISTEMA_CONFIG)
 
 @app.route('/api/upload', methods=['POST'])
@@ -393,12 +413,12 @@ def upload_excel():
         
         file = request.files['file']
         if file.filename == '':
-            return jsonify({'error': 'Nome de arquivo inválido'}), 400
+            return jsonify({'error': 'Nome de arquivo invalido'}), 400
         
         if not file.filename.endswith(('.xlsx', '.xls')):
             return jsonify({'error': 'Arquivo deve ser Excel (.xlsx ou .xls)'}), 400
         
-        # Salvar arquivo temporário
+        # Salvar arquivo temporario
         filename = secure_filename(file.filename)
         temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(temp_path)
@@ -409,12 +429,12 @@ def upload_excel():
         # Importar para banco
         imported_count = import_products_to_db(products_data)
         
-        # Limpar arquivo temporário
+        # Limpar arquivo temporario
         os.remove(temp_path)
         
         return jsonify({
             'success': True,
-            'message': f'Importação concluída com sucesso!',
+            'message': f'Importacao concluida com sucesso!',
             'imported_count': imported_count,
             'images_found': len(images),
             'products_count': len(products_data)
@@ -425,7 +445,7 @@ def upload_excel():
 
 @app.route('/catalog')
 def catalog():
-    """Catálogo de produtos"""
+    """Catalogo de produtos"""
     conn = get_db_connection()
     products = conn.execute("""
         SELECT * FROM produtos_plus 
@@ -438,7 +458,7 @@ def catalog():
 
 @app.route('/api/stats')
 def get_stats():
-    """API de estatísticas"""
+    """API de estatisticas"""
     conn = get_db_connection()
     
     stats = {
@@ -456,3 +476,4 @@ def get_stats():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, host='0.0.0.0', port=port)
+
