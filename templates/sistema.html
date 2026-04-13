@@ -234,6 +234,36 @@
                 Build: {{ resultado.build_info.commit[:12] if resultado.build_info.commit else 'local' }}
             </p>
             {% endif %}
+
+            {% if resultado and resultado.distribuicao_desktop %}
+            <div style="background: #fff8e6; padding: 15px; border-radius: 10px; margin-top: 15px; text-align: left;">
+                <strong style="display: block; margin-bottom: 8px; color: #7a5200;">Download Desktop (.exe)</strong>
+                <p style="margin: 4px 0; color: #7a5200; font-size: 14px;">
+                    Maquinas permitidas por licenca: <strong>{{ resultado.distribuicao_desktop.max_maquinas }}</strong>
+                </p>
+                <p style="margin: 4px 0; color: #7a5200; font-size: 14px;">
+                    Atualizacoes: {% if resultado.distribuicao_desktop.atualizacao_requer_compra %}<strong>pagas por versao</strong>{% else %}<strong>incluidas</strong>{% endif %}
+                </p>
+                {% if resultado.distribuicao_desktop.disponivel %}
+                <p style="margin: 6px 0; color: #7a5200; font-size: 13px;">
+                    Arquivo: <strong>{{ resultado.distribuicao_desktop.arquivo }}</strong>
+                    {% if resultado.distribuicao_desktop.atualizado_em %}
+                    | Atualizado em: {{ resultado.distribuicao_desktop.atualizado_em }}
+                    {% endif %}
+                </p>
+                <a href="{{ resultado.distribuicao_desktop.download_url }}" class="btn btn-warning btn-sm" style="margin-top: 8px;">
+                    Baixar instalador .exe
+                </a>
+                {% else %}
+                <a href="/download-exe" class="btn btn-warning btn-sm disabled" aria-disabled="true" style="margin-top: 8px; pointer-events: none; opacity: 0.65;">
+                    Baixar instalador .exe
+                </a>
+                <p style="margin: 6px 0; color: #7a5200; font-size: 13px;">
+                    Instalador ainda nao publicado. Coloque o arquivo .exe na pasta <strong>releases/</strong>.
+                </p>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
 
         <!-- Botão Voltar -->

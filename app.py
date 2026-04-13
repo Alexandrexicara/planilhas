@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
 import os
 import sys
 import sqlite3
@@ -84,11 +84,51 @@ BUILD_INFO = {
     'commit': os.environ.get('RENDER_GIT_COMMIT', '') or os.environ.get('VERCEL_GIT_COMMIT_SHA', ''),
 }
 
+DESKTOP_RELEASES_DIR = os.path.join(BASE_DIR, 'releases')
+DESKTOP_POLICY = {
+    'max_maquinas': 10,
+    'atualizacao_requer_compra': True
+}
+
 def get_db_connection():
     """Conexao com o banco de dados"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def get_latest_desktop_exe():
+    """Retorna o executavel mais recente em `releases/`."""
+    if not os.path.isdir(DESKTOP_RELEASES_DIR):
+        return None
+
+    exes = []
+    for entry in os.scandir(DESKTOP_RELEASES_DIR):
+        if entry.is_file() and entry.name.lower().endswith('.exe'):
+            exes.append(entry.path)
+
+    if not exes:
+        return None
+
+    latest_path = max(exes, key=os.path.getmtime)
+    return {
+        'path': latest_path,
+        'filename': os.path.basename(latest_path),
+        'updated_at': datetime.fromtimestamp(os.path.getmtime(latest_path)).strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+
+def get_desktop_distribution_info():
+    """Dados para exibir download .exe e limite de maquinas."""
+    exe = get_latest_desktop_exe()
+    return {
+        'disponivel': bool(exe),
+        'arquivo': exe['filename'] if exe else None,
+        'atualizado_em': exe['updated_at'] if exe else None,
+        'download_url': '/download-exe' if exe else None,
+        'max_maquinas': DESKTOP_POLICY['max_maquinas'],
+        'atualizacao_requer_compra': DESKTOP_POLICY['atualizacao_requer_compra']
+    }
 
 def extract_images_from_excel(excel_path, output_dir):
     """Extrai imagens do arquivo Excel automaticamente"""
@@ -270,6 +310,20 @@ def index():
     """Pagina inicial atraente"""
     return render_template('index.html', config=SISTEMA_CONFIG)
 
+
+@app.route('/download-exe')
+def download_exe():
+    """Baixa o executavel desktop mais recente publicado em releases/."""
+    exe = get_latest_desktop_exe()
+    if not exe:
+        return (
+            "Arquivo .exe ainda nao foi publicado. "
+            "Adicione o instalador em releases/ para liberar o download.",
+            404
+        )
+
+    return send_file(exe['path'], as_attachment=True, download_name=exe['filename'])
+
 @app.route('/executar-sistema-legado')
 def executar_sistema_legado():
     """Executa funcoes dos modulos dentro do mesmo processo Flask."""
@@ -278,7 +332,8 @@ def executar_sistema_legado():
             'status': 'sucesso',
             'mensagem': 'Sistema iniciado com sucesso!',
             'timestamp': datetime.now().isoformat(),
-            'modulos_carregados': []
+            'modulos_carregados': [],
+            'distribuicao_desktop': get_desktop_distribution_info()
         }
 
         # Modulo sistema
@@ -341,7 +396,8 @@ def executar_sistema():
             'alvo': alvo,
             'ambiente_gui': ambiente_gui,
             'ambiente_nome': ambiente_nome,
-            'build_info': BUILD_INFO
+            'build_info': BUILD_INFO,
+            'distribuicao_desktop': get_desktop_distribution_info()
         }
 
         for script_name, nome_exibicao in scripts_para_abrir:

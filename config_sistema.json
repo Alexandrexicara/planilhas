@@ -5,5 +5,8 @@
     "timeout_conexao": 10,
     "tentativas_reconexao": 3,
     "intervalo_sincronizacao": 30,
-    "versao_sistema": "1.0.0"
+    "versao_sistema": "1.0.0",
+    "max_maquinas_permitidas": 10,
+    "atualizacao_automatica": false,
+    "atualizacao_requer_compra": true
 }
