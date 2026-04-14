@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 import os
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
@@ -10,15 +10,15 @@ import json
 from PIL import Image, ImageTk
 
 # ==============================
-# BANCO DE DADOS - VERSÃO PLUS
+# BANCO DE DADOS - VERSÃƒO PLUS
 # ==============================
 
-# Thread-local storage para conexões thread-safe
+# Thread-local storage para conexÃµes thread-safe
 conn_local_plus = threading.local()
 cursor_local_plus = threading.local()
 
 def get_connection_plus():
-    """Obtém conexão thread-safe para banco PLUS"""
+    """ObtÃ©m conexÃ£o thread-safe para banco PLUS"""
     if not hasattr(conn_local_plus, 'conn'):
         conn_local_plus.conn = sqlite3.connect("banco_plus.db")
         conn_local_plus.conn.execute("PRAGMA journal_mode=DELETE")
@@ -30,16 +30,16 @@ def get_connection_plus():
     return conn_local_plus.conn
 
 def get_cursor_plus():
-    """Obtém cursor thread-safe para banco PLUS"""
+    """ObtÃ©m cursor thread-safe para banco PLUS"""
     if not hasattr(cursor_local_plus, 'cursor'):
         cursor_local_plus.cursor = get_connection_plus().cursor()
     return cursor_local_plus.cursor
 
 def criar_banco_plus():
-    """Cria o banco de dados PLUS com todas as tabelas e índices"""
+    """Cria o banco de dados PLUS com todas as tabelas e Ã­ndices"""
     cursor = get_cursor_plus()
     
-    # Tabela principal com TODAS as 39 colunas e índices otimizados
+    # Tabela principal com TODAS as 39 colunas e Ã­ndices otimizados
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS produtos_plus(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,7 +85,7 @@ def criar_banco_plus():
     )
     """)
     
-    # Índices compostos para busca ultra-rápida
+    # Ãndices compostos para busca ultra-rÃ¡pida
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_plus ON produtos_plus(cliente)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_codigo_plus ON produtos_plus(codigo)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_descricao_plus ON produtos_plus(descricao)")
@@ -93,7 +93,7 @@ def criar_banco_plus():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_hash_plus ON produtos_plus(hash_dados)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_busca_completa_plus ON produtos_plus(cliente, codigo, descricao, ncm)")
     
-    # Tabela de estatísticas
+    # Tabela de estatÃ­sticas
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS stats_plus(
         id INTEGER PRIMARY KEY,
@@ -107,11 +107,11 @@ def criar_banco_plus():
     get_connection_plus().commit()
 
 # ==============================
-# FUNÇÕES OTIMIZADAS
+# FUNÃ‡Ã•ES OTIMIZADAS
 # ==============================
 
 def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None, duplicatas=False):
-    """Importação ultra-rápida com controle de duplicatas"""
+    """ImportaÃ§Ã£o ultra-rÃ¡pida com controle de duplicatas"""
     print(f"DEBUG: Importar planilha PLUS: {caminho_arquivo}")
     
     if not cliente:
@@ -126,23 +126,23 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         wb = load_workbook(caminho_arquivo, read_only=True)
         ws = wb.active
         
-        # Detectar cabeçalhos - usar a linha com mais células preenchidas (linhas 2-20)
+        # Detectar cabeÃ§alhos - usar a linha com mais cÃ©lulas preenchidas (linhas 2-20)
         max_celulas = 0
         cabecalhos = []
         linha_cabecalho = 1
         
-        for row_num in range(2, min(21, ws.max_row + 1)):  # Começar da linha 2
+        for row_num in range(2, min(21, ws.max_row + 1)):  # ComeÃ§ar da linha 2
             linha = next(ws.iter_rows(min_row=row_num, max_row=row_num, values_only=True))
             celulas_preenchidas = [c for c in linha if c and str(c).strip()]
             
-            # Se esta linha tem mais células preenchidas que a anterior, use-a
+            # Se esta linha tem mais cÃ©lulas preenchidas que a anterior, use-a
             if len(celulas_preenchidas) > max_celulas:
                 max_celulas = len(celulas_preenchidas)
                 cabecalhos = [str(c).strip() for c in linha if c and str(c).strip()]
                 linha_cabecalho = row_num
                 
-        print(f"DEBUG: Cabeçalhos encontrados na linha {linha_cabecalho}: {len(cabecalhos)} colunas")
-        print(f"DEBUG: Primeiros cabeçalhos: {cabecalhos[:10]}")
+        print(f"DEBUG: CabeÃ§alhos encontrados na linha {linha_cabecalho}: {len(cabecalhos)} colunas")
+        print(f"DEBUG: Primeiros cabeÃ§alhos: {cabecalhos[:10]}")
         
         colunas_detectadas = detectar_colunas_excel_plus(cabecalhos)
         print(f"DEBUG: Colunas detectadas: {colunas_detectadas}")
@@ -155,14 +155,14 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         batch_size = 5000
         dados_batch = []
         
-        # Começar a ler dados após a linha de cabeçalho
+        # ComeÃ§ar a ler dados apÃ³s a linha de cabeÃ§alho
         linha_inicial_dados = linha_cabecalho + 1
         
         for row in ws.iter_rows(min_row=linha_inicial_dados, values_only=True):
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
             
-            # Extrair dados usando mapeamento direto (índice -> coluna banco)
+            # Extrair dados usando mapeamento direto (Ã­ndice -> coluna banco)
             dados = {col: '' for col in COLUNAS_BANCO_PLUS}  # Inicializar todas colunas vazias
             
             for i, cell in enumerate(row):
@@ -183,7 +183,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 f"{cliente}_{dados.get('codigo','')}_{dados.get('descricao','')}".encode()
             ).hexdigest()
             
-            # Verificar duplicata se necessário
+            # Verificar duplicata se necessÃ¡rio
             if duplicatas:
                 get_cursor_plus().execute("SELECT id FROM produtos_plus WHERE hash_dados = ?", (hash_dados,))
                 if get_cursor_plus().fetchone():
@@ -269,11 +269,11 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         
         wb.close()
         
-        # Atualizar estatísticas
+        # Atualizar estatÃ­sticas
         atualizar_estatisticas_plus()
         
         # DEBUG: Verificar dados no banco
-        print(f"DEBUG: Verificando dados no banco PLUS após importação...")
+        print(f"DEBUG: Verificando dados no banco PLUS apÃ³s importaÃ§Ã£o...")
         get_cursor_plus().execute("SELECT codigo, descricao FROM produtos_plus LIMIT 5")
         resultados_verificacao = get_cursor_plus().fetchall()
         print(f"DEBUG: Primeiros 5 registros no banco: {resultados_verificacao}")
@@ -294,15 +294,15 @@ COLUNAS_BANCO_PLUS = [
     'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status'
 ]
 
-# Mapeamento de sinônimos para colunas PLUS
+# Mapeamento de sinÃ´nimos para colunas PLUS
 MAPEAMENTO_SINONIMOS_PLUS = {
-    'codigo': ['codigo', 'código', 'cod', 'code', 'item', 'sku', 'referencia', 'referência', 'id', 'produto_id'],
-    'descricao': ['descricao', 'descrição', 'produto', 'item_desc', 'name', 'descrição do produto', 'titulo', 'nome', 'descrição portugues', 'description portuguese', 'descrição portugues (description portuguese)'],
+    'codigo': ['codigo', 'cÃ³digo', 'cod', 'code', 'item', 'sku', 'referencia', 'referÃªncia', 'id', 'produto_id'],
+    'descricao': ['descricao', 'descriÃ§Ã£o', 'produto', 'item_desc', 'name', 'descriÃ§Ã£o do produto', 'titulo', 'nome', 'descriÃ§Ã£o portugues', 'description portuguese', 'descriÃ§Ã£o portugues (description portuguese)'],
     'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
-    'valor': ['valor', 'preco', 'preço', 'price', 'unitario', 'unitário', 'custo', 'valor_unit', 'preco_unit', 'unit price umo'],
+    'valor': ['valor', 'preco', 'preÃ§o', 'price', 'unitario', 'unitÃ¡rio', 'custo', 'valor_unit', 'preco_unit', 'unit price umo'],
     'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh', 'hs code', 'hs code'],
     'doc': ['doc', 'documento'],
-    'rev': ['rev', 'revisao', 'revisão'],
+    'rev': ['rev', 'revisao', 'revisÃ£o'],
     'code': ['code', 'codigo_interno'],
     'quantity': ['quantity', 'quantidade', 'qtd'],
     'um': ['um', 'unidade', 'un'],
@@ -317,8 +317,8 @@ MAPEAMENTO_SINONIMOS_PLUS = {
     'gross_weight_pc': ['gross weight pc', 'peso_bruto_unit', 'gross weight / pc( g )', 'gross weight / pc (g)'],
     'net_weight_ctn': ['net weight ctn', 'peso_liquido_cx', 'net weight / ctn( kg )', 'net weight / ctn (kg)'],
     'gross_weight_ctn': ['gross weight ctn', 'peso_bruto_cx', 'gross weight / ctn( kg )', 'gross weight / ctn (kg)'],
-    'factory': ['factory', 'fabrica', 'fábrica', 'name of factory'],
-    'address': ['address', 'endereco', 'endereço', 'address of factory'],
+    'factory': ['factory', 'fabrica', 'fÃ¡brica', 'name of factory'],
+    'address': ['address', 'endereco', 'endereÃ§o', 'address of factory'],
     'telephone': ['telephone', 'telefone', 'tel', 'phone'],
     'ean13': ['ean13', 'ean', 'barcode'],
     'dun14_inner': ['dun-14 inner', 'dun14_interno', 'dun_inner'],
@@ -328,13 +328,13 @@ MAPEAMENTO_SINONIMOS_PLUS = {
     'height': ['height', 'altura', 'height ctn'],
     'cbm': ['cbm', 'metro_cubico', 'total cbm'],
     'prc_kg': ['prc/kg', 'preco_kg', 'prc/kg'],
-    'li': ['li', 'licenca', 'licença'],
-    'obs': ['obs', 'observacoes', 'observações', 'notas'],
-    'status': ['status', 'situacao', 'situação', 'status da compra']
+    'li': ['li', 'licenca', 'licenÃ§a'],
+    'obs': ['obs', 'observacoes', 'observaÃ§Ãµes', 'notas'],
+    'status': ['status', 'situacao', 'situaÃ§Ã£o', 'status da compra']
 }
 
 def detectar_colunas_excel_plus(cabecalhos):
-    """Detecção de colunas com mapeamento flexível (sinônimos)"""
+    """DetecÃ§Ã£o de colunas com mapeamento flexÃ­vel (sinÃ´nimos)"""
     mapeamento = {}
     colunas_nao_mapeadas = []
     
@@ -348,7 +348,7 @@ def detectar_colunas_excel_plus(cabecalhos):
                 coluna_encontrada = col_banco
                 break
         
-        # Se não encontrou, tentar por sinônimos
+        # Se nÃ£o encontrou, tentar por sinÃ´nimos
         if not coluna_encontrada:
             for col_banco, sinonimos in MAPEAMENTO_SINONIMOS_PLUS.items():
                 if cab_lower in [s.lower() for s in sinonimos]:
@@ -357,16 +357,16 @@ def detectar_colunas_excel_plus(cabecalhos):
         
         if coluna_encontrada:
             mapeamento[i] = coluna_encontrada
-            print(f"✅ Coluna {i}: '{cab}' -> MAPEADA como '{coluna_encontrada}'")
+            print(f"âœ… Coluna {i}: '{cab}' -> MAPEADA como '{coluna_encontrada}'")
         else:
             colunas_nao_mapeadas.append((i, cab))
-            print(f"❌ Coluna {i}: '{cab}' -> NÃO MAPEADA")
+            print(f"âŒ Coluna {i}: '{cab}' -> NÃƒO MAPEADA")
     
     print(f"\n=== RESUMO DO MAPEAMENTO PLUS ===")
-    print(f"✅ Total mapeadas: {len(mapeamento)}")
-    print(f"❌ Total não mapeadas: {len(colunas_nao_mapeadas)}")
+    print(f"âœ… Total mapeadas: {len(mapeamento)}")
+    print(f"âŒ Total nÃ£o mapeadas: {len(colunas_nao_mapeadas)}")
     if colunas_nao_mapeadas:
-        print(f"❌ Colunas não mapeadas: {colunas_nao_mapeadas}")
+        print(f"âŒ Colunas nÃ£o mapeadas: {colunas_nao_mapeadas}")
     print(f"================================\n")
     
     return mapeamento
@@ -379,10 +379,12 @@ COLUNAS_PLUS_SELECT = [
     'address', 'telephone', 'ean13', 'dun14_inner', 'dun14_master',
     'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status'
 ]
+COLUNAS_PLUS_UI = tuple([c.upper() for c in COLUNAS_PLUS_SELECT])
 
 
-def buscar_produtos_plus(termo='', cliente_filtro='Todos', limit=10000):
+def buscar_produtos_plus(termo='', cliente_filtro='Todos', planilha_filtro='Todas', limit=10000):
     """Busca produtos no PLUS em todas as colunas textuais."""
+    print(f"DEBUG: Buscar PLUS - termo='{termo}' cliente='{cliente_filtro}' planilha='{planilha_filtro}'")
     sql_colunas = ", ".join(COLUNAS_PLUS_SELECT)
     query = f"SELECT {sql_colunas} FROM produtos_plus WHERE 1=1"
     params = []
@@ -398,12 +400,20 @@ def buscar_produtos_plus(termo='', cliente_filtro='Todos', limit=10000):
         query += " AND LOWER(TRIM(COALESCE(cliente, ''))) = LOWER(TRIM(?))"
         params.append(cliente_filtro)
 
+    if planilha_filtro and planilha_filtro != "Todas":
+        query += " AND LOWER(TRIM(COALESCE(arquivo_origem, ''))) = LOWER(TRIM(?))"
+        params.append(planilha_filtro)
+
     query += " ORDER BY cliente, arquivo_origem LIMIT ?"
     params.append(limit)
 
     try:
+        print(f"DEBUG: Query PLUS: {query[:220]}...")
+        print(f"DEBUG: Params PLUS: {params[:6]}{'...' if len(params) > 6 else ''}")
         get_cursor_plus().execute(query, params)
-        return get_cursor_plus().fetchall()
+        resultados = get_cursor_plus().fetchall()
+        print(f"DEBUG: Resultados PLUS: {len(resultados)}")
+        return resultados
     except Exception as e:
         print(f"DEBUG: Erro na busca PLUS: {e}")
         return []
@@ -419,6 +429,17 @@ def listar_clientes_plus():
     """)
     return [row[0] for row in get_cursor_plus().fetchall()]
 
+
+def listar_planilhas_plus():
+    """Lista planilhas (arquivo_origem) unicas do banco PLUS."""
+    get_cursor_plus().execute("""
+        SELECT DISTINCT TRIM(arquivo_origem)
+        FROM produtos_plus
+        WHERE TRIM(COALESCE(arquivo_origem, '')) <> ''
+        ORDER BY TRIM(arquivo_origem)
+    """)
+    return [row[0] for row in get_cursor_plus().fetchall()]
+
 def contar_produtos_plus():
     """Contagem otimizada"""
     get_cursor_plus().execute("SELECT COUNT(*) FROM produtos_plus")
@@ -427,7 +448,7 @@ def contar_produtos_plus():
     return count
 
 def contar_planilhas_plus():
-    """Contagem de planilhas únicas"""
+    """Contagem de planilhas Ãºnicas"""
     get_cursor_plus().execute("SELECT COUNT(DISTINCT arquivo_origem) FROM produtos_plus")
     count = get_cursor_plus().fetchone()[0]
     print(f"DEBUG: Total de planilhas PLUS: {count}")
@@ -440,7 +461,7 @@ def tamanho_banco_plus():
     return round(tamanho_bytes / (1024 * 1024), 2)
 
 def atualizar_estatisticas_plus():
-    """Atualiza tabela de estatísticas"""
+    """Atualiza tabela de estatÃ­sticas"""
     total_produtos = contar_produtos_plus()
     total_planilhas = contar_planilhas_plus()
     tamanho_mb = tamanho_banco_plus()
@@ -452,7 +473,7 @@ def atualizar_estatisticas_plus():
     get_connection_plus().commit()
 
 def otimizar_banco_plus():
-    """Otimização do banco para performance máxima"""
+    """OtimizaÃ§Ã£o do banco para performance mÃ¡xima"""
     get_cursor_plus().execute("VACUUM")
     get_cursor_plus().execute("ANALYZE")
     get_connection_plus().commit()
@@ -468,14 +489,17 @@ class SistemaPlanilhasPlus:
         self.janela.geometry("1400x800")
         self.janela.configure(bg='#1a1a1a')
         
-        # Variáveis
+        # VariÃ¡veis
         self.termo_busca = tk.StringVar()
         self.cliente_selecionado = tk.StringVar(value="Todos")
+        self.planilha_selecionada = tk.StringVar(value="Todas")
         self.pasta_exportacoes = self.carregar_configuracao_exportacoes_plus()
         
         self.criar_interface_plus()
         self.atualizar_estatisticas_interface()
         self.atualizar_lista_clientes_plus()
+        self.atualizar_lista_planilhas_plus()
+        self.executar_busca_plus()
     
     def carregar_configuracao_exportacoes_plus(self):
         """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
@@ -510,7 +534,7 @@ class SistemaPlanilhasPlus:
     def escolher_pasta_exportacoes_plus(self):
         """Abre dialogo para escolher pasta de exportacoes"""
         pasta_escolhida = filedialog.askdirectory(
-            title="Escolha onde criar a pasta de exportações PLUS",
+            title="Escolha onde criar a pasta de exportaÃ§Ãµes PLUS",
             initialdir=self.pasta_exportacoes
         )
         
@@ -523,16 +547,16 @@ class SistemaPlanilhasPlus:
             self.salvar_configuracao_exportacoes_plus(pasta_completa)
             
             messagebox.showinfo("Sucesso", 
-                f"Pasta de exportações PLUS configurada em:\n{pasta_completa}\n\n"
-                "Todas as exportações serão salvas automaticamente aqui.")
+                f"Pasta de exportaÃ§Ãµes PLUS configurada em:\n{pasta_completa}\n\n"
+                "Todas as exportaÃ§Ãµes serÃ£o salvas automaticamente aqui.")
     
     def criar_interface_plus(self):
-        # Frame superior - Estatísticas PLUS
+        # Frame superior - EstatÃ­sticas PLUS
         frame_stats_plus = tk.Frame(self.janela, bg='#2c3e50', height=180)
         frame_stats_plus.pack(fill='x', padx=5, pady=5)
         frame_stats_plus.pack_propagate(False)
         
-        # Frame para logo e título (linha superior)
+        # Frame para logo e tÃ­tulo (linha superior)
         frame_logo_titulo = tk.Frame(frame_stats_plus, bg='#2c3e50')
         frame_logo_titulo.pack(fill='x', pady=(10, 5))
         
@@ -546,41 +570,41 @@ class SistemaPlanilhasPlus:
                 logo_photo = ImageTk.PhotoImage(logo_image)
                 
                 logo_label = tk.Label(frame_logo_titulo, image=logo_photo, bg='#2c3e50')
-                logo_label.image = logo_photo  # Manter referência
+                logo_label.image = logo_photo  # Manter referÃªncia
                 logo_label.pack(side='left', padx=(20, 15))
             else:
-                # Fallback para emoji se imagem não existir
-                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 64), bg='#2c3e50', fg='white')
+                # Fallback para emoji se imagem nÃ£o existir
+                logo_label = tk.Label(frame_logo_titulo, text="ðŸª¶", font=('Arial', 64), bg='#2c3e50', fg='white')
                 logo_label.pack(side='left', padx=(20, 15))
         except Exception as e:
             # Fallback para emoji em caso de erro
-            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 64), bg='#2c3e50', fg='white')
+            logo_label = tk.Label(frame_logo_titulo, text="ðŸª¶", font=('Arial', 64), bg='#2c3e50', fg='white')
             logo_label.pack(side='left', padx=(20, 15))
         
-        # Título ao lado do logo
+        # TÃ­tulo ao lado do logo
         titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com PLUS", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
         titulo_label.pack(side='left', padx=(0, 20))
         
-        # Frame de navegação no canto direito
+        # Frame de navegaÃ§Ã£o no canto direito
         frame_navegacao = tk.Frame(frame_logo_titulo, bg='#2c3e50')
         frame_navegacao.pack(side='right', padx=(20, 0))
         
-        # Botão para voltar ao Sistema Original
-        btn_voltar_original = tk.Button(frame_navegacao, text="📊 Sistema Original", 
+        # BotÃ£o para voltar ao Sistema Original
+        btn_voltar_original = tk.Button(frame_navegacao, text="ðŸ“Š Sistema Original", 
                                        command=self.voltar_sistema_original,
                                        bg='#3498db', fg='white', font=('Arial', 10, 'bold'),
                                        relief='raised', bd=2, cursor='hand2')
         btn_voltar_original.pack(pady=2)
         
-        # Estatísticas em linha separada (linha inferior)
+        # EstatÃ­sticas em linha separada (linha inferior)
         frame_stats_container = tk.Frame(frame_stats_plus, bg='#2c3e50')
         frame_stats_container.pack(fill='x', pady=(5, 15))
         
         self.label_stats_plus = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', font=('Arial', 12, 'bold'))
         self.label_stats_plus.pack()
         
-        # Frame de controles avançados
-        frame_controles = tk.LabelFrame(self.janela, text="⚡ Controles Avançados", 
+        # Frame de controles avanÃ§ados
+        frame_controles = tk.LabelFrame(self.janela, text="âš¡ Controles AvanÃ§ados", 
                                       font=('Arial', 14, 'bold'), bg='#34495e')
         frame_controles.pack(fill='x', padx=10, pady=5)
         
@@ -588,27 +612,27 @@ class SistemaPlanilhasPlus:
         frame_busca = tk.Frame(frame_controles, bg='#34495e')
         frame_busca.pack(fill='x', padx=10, pady=10)
         
-        tk.Label(frame_busca, text="🔍 Busca:", font=('Arial', 12), bg='#34495e', fg='white').pack(side='left', padx=5)
+        tk.Label(frame_busca, text="ðŸ” Busca:", font=('Arial', 12), bg='#34495e', fg='white').pack(side='left', padx=5)
         self.campo_busca = tk.Entry(frame_busca, textvariable=self.termo_busca, font=('Arial', 12), width=50)
         self.campo_busca.pack(side='left', padx=5)
         
-        tk.Button(frame_busca, text="🔎 Buscar", command=self.executar_busca_plus,
+        tk.Button(frame_busca, text="ðŸ”Ž Buscar", command=self.executar_busca_plus,
                  bg='#3498db', fg='white', font=('Arial', 12, 'bold')).pack(side='left', padx=5)
         
-        tk.Button(frame_busca, text="🗑️ Limpar", command=self.limpar_busca_plus,
+        tk.Button(frame_busca, text="ðŸ—‘ï¸ Limpar", command=self.limpar_busca_plus,
                  bg='#e74c3c', fg='white', font=('Arial', 12), width=12, height=1).pack(side='left', padx=5)
         
-        # Linha 2 - Importação
+        # Linha 2 - ImportaÃ§Ã£o
         frame_import = tk.Frame(frame_controles, bg='#34495e')
         frame_import.pack(fill='x', padx=10, pady=5)
         
-        tk.Button(frame_import, text="📁 Importar Pasta", command=self.importar_pasta_plus,
+        tk.Button(frame_import, text="ðŸ“ Importar Pasta", command=self.importar_pasta_plus,
                  bg='#27ae60', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
         
-        tk.Button(frame_import, text="📄 Selecionar Arquivos", command=self.selecionar_arquivos_plus,
+        tk.Button(frame_import, text="ðŸ“„ Selecionar Arquivos", command=self.selecionar_arquivos_plus,
                  bg='#f39c12', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
         
-        tk.Button(frame_import, text="⚙️ Otimizar Banco", command=self.otimizar_banco_interface,
+        tk.Button(frame_import, text="âš™ï¸ Otimizar Banco", command=self.otimizar_banco_interface,
                  bg='#9b59b6', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
         
         # Filtros
@@ -617,25 +641,31 @@ class SistemaPlanilhasPlus:
                                                state='readonly', width=30)
         self.combo_clientes_plus.pack(side='left', padx=5)
         self.combo_clientes_plus['values'] = ["Todos"]
+
+        tk.Label(frame_import, text="Planilha:", font=('Arial', 12), bg='#34495e', fg='white').pack(side='left', padx=5)
+        self.combo_planilhas_plus = ttk.Combobox(frame_import, textvariable=self.planilha_selecionada,
+                                                 state='readonly', width=35)
+        self.combo_planilhas_plus.pack(side='left', padx=5)
+        self.combo_planilhas_plus['values'] = ["Todas"]
         
         # Frame de resultados
-        frame_resultados = tk.LabelFrame(self.janela, text="📊 Resultados (Capacidade Máxima)", 
+        frame_resultados = tk.LabelFrame(self.janela, text="ðŸ“Š Resultados (Capacidade MÃ¡xima)", 
                                        font=('Arial', 14, 'bold'), bg='#34495e')
         frame_resultados.pack(fill='both', expand=True, padx=10, pady=5)
         
-        # Barra de exportação
+        # Barra de exportaÃ§Ã£o
         frame_export = tk.Frame(frame_resultados, bg='#34495e')
         frame_export.pack(fill='x', padx=5, pady=5)
         
-        tk.Button(frame_export, text="📊 Exportar Excel", command=self.exportar_excel_plus,
+        tk.Button(frame_export, text="ðŸ“Š Exportar Excel", command=self.exportar_excel_plus,
                  bg='#8e44ad', fg='white', font=('Arial', 12), width=20, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="� Pasta Exportações", command=self.escolher_pasta_exportacoes_plus,
+        tk.Button(frame_export, text="ï¿½ Pasta ExportaÃ§Ãµes", command=self.escolher_pasta_exportacoes_plus,
                  bg='#3498db', fg='white', font=('Arial', 12), width=20, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="� Estatísticas", command=self.mostrar_estatisticas_detalhadas,
+        tk.Button(frame_export, text="ï¿½ EstatÃ­sticas", command=self.mostrar_estatisticas_detalhadas,
                  bg='#2ecc71', fg='white', font=('Arial', 12)).pack(side='left', padx=5)
         
         self.label_resultados_plus = tk.Label(frame_export, text="0 resultados", bg='#34495e', 
@@ -646,16 +676,17 @@ class SistemaPlanilhasPlus:
         frame_tabela = tk.Frame(frame_resultados)
         frame_tabela.pack(fill='both', expand=True, padx=5, pady=5)
         
-        self.colunas_plus = ('Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS')
+        self.colunas_plus = COLUNAS_PLUS_UI
         self.tabela_plus = ttk.Treeview(frame_tabela, columns=self.colunas_plus, show='headings', height=20)
         
         for col in self.colunas_plus:
             self.tabela_plus.heading(col, text=col)
-            if col == 'Descrição':
+            col_norm = col.lower()
+            if 'descricao' in col_norm:
                 self.tabela_plus.column(col, width=400)
-            elif col == 'Cliente':
+            elif 'cliente' in col_norm:
                 self.tabela_plus.column(col, width=150)
-            elif col == 'Arquivo':
+            elif 'arquivo' in col_norm:
                 self.tabela_plus.column(col, width=250)
             else:
                 self.tabela_plus.column(col, width=100)
@@ -684,45 +715,62 @@ class SistemaPlanilhasPlus:
         if self.cliente_selecionado.get() not in clientes:
             self.cliente_selecionado.set("Todos")
 
+    def atualizar_lista_planilhas_plus(self):
+        """Atualiza a lista de planilhas importadas no filtro."""
+        planilhas = ["Todas"] + listar_planilhas_plus()
+        self.combo_planilhas_plus['values'] = planilhas
+        if self.planilha_selecionada.get() not in planilhas:
+            self.planilha_selecionada.set("Todas")
+
     def executar_busca_plus(self):
         termo = self.termo_busca.get().strip()
         cliente = self.cliente_selecionado.get()
+        planilha = self.planilha_selecionada.get()
+        print(f"DEBUG: Executar busca PLUS - termo='{termo}' cliente='{cliente}' planilha='{planilha}'")
 
         # Limpar tabela
         for item in self.tabela_plus.get_children():
             self.tabela_plus.delete(item)
 
         # Mesmo comportamento do sistema original:
-        # sem termo e com cliente "Todos" => listar tudo
-        if not termo and cliente != "Todos":
+        # sem termo e filtros padrao => listar tudo
+        if not termo and (cliente != "Todos" or planilha != "Todas"):
             termo = "*"
-        if not termo and cliente == "Todos":
+        if not termo and cliente == "Todos" and planilha == "Todas":
             termo = "*"
 
         try:
-            resultados = buscar_produtos_plus(termo, cliente, limit=10000)
+            resultados = buscar_produtos_plus(
+                termo,
+                cliente_filtro=cliente,
+                planilha_filtro=planilha,
+                limit=10000
+            )
             for resultado in resultados:
                 self.tabela_plus.insert('', 'end', values=resultado)
 
             self.label_resultados_plus.config(text=f"{len(resultados):,} resultados encontrados")
-            self.status_bar_plus.config(text=f"Busca PLUS concluida: {len(resultados):,} resultados")
+            self.status_bar_plus.config(
+                text=f"Busca PLUS concluida: {len(resultados):,} resultados | Cliente: {cliente} | Planilha: {planilha}"
+            )
         except Exception as e:
             messagebox.showerror("Erro", f"Erro na busca: {str(e)}")
     
     def limpar_busca_plus(self):
         self.termo_busca.set("")
         self.cliente_selecionado.set("Todos")
+        self.planilha_selecionada.set("Todas")
         
         for item in self.tabela_plus.get_children():
             self.tabela_plus.delete(item)
         
-        self.label_resultados_plus.config(text="0 resultados")
+        self.label_resultados_plus.config(text="0 resultados encontrados")
         self.status_bar_plus.config(text="Busca limpa")
     
     def importar_pasta_plus(self):
         def importar_thread():
             try:
-                self.status_bar_plus.config(text="Importação PLUS em andamento...")
+                self.status_bar_plus.config(text="ImportaÃ§Ã£o PLUS em andamento...")
                 self.janela.update()
                 
                 pasta = "planilhas"
@@ -739,8 +787,10 @@ class SistemaPlanilhasPlus:
                 
                 self.atualizar_estatisticas_interface()
                 self.atualizar_lista_clientes_plus()
-                messagebox.showinfo("Importação PLUS", f"Importados {total_geral:,} produtos!")
-                self.status_bar_plus.config(text=f"Importação concluída: {total_geral:,} produtos")
+                self.atualizar_lista_planilhas_plus()
+                self.executar_busca_plus()
+                messagebox.showinfo("ImportaÃ§Ã£o PLUS", f"Importados {total_geral:,} produtos!")
+                self.status_bar_plus.config(text=f"ImportaÃ§Ã£o concluÃ­da: {total_geral:,} produtos")
                 
             except Exception as e:
                 messagebox.showerror("Erro", f"Erro: {str(e)}")
@@ -749,7 +799,7 @@ class SistemaPlanilhasPlus:
     
     def selecionar_arquivos_plus(self):
         arquivos = filedialog.askopenfilenames(
-            title="Selecione planilhas (múltiplo)",
+            title="Selecione planilhas (mÃºltiplo)",
             filetypes=[("Excel", "*.xlsx *.xls"), ("Todos", "*.*")]
         )
         
@@ -763,7 +813,9 @@ class SistemaPlanilhasPlus:
                     
                     self.atualizar_estatisticas_interface()
                     self.atualizar_lista_clientes_plus()
-                    messagebox.showinfo("Importação PLUS", f"Importados {total_geral:,} produtos!")
+                    self.atualizar_lista_planilhas_plus()
+                    self.executar_busca_plus()
+                    messagebox.showinfo("ImportaÃ§Ã£o PLUS", f"Importados {total_geral:,} produtos!")
                     
                 except Exception as e:
                     messagebox.showerror("Erro", f"Erro: {str(e)}")
@@ -778,7 +830,7 @@ class SistemaPlanilhasPlus:
             otimizar_banco_plus()
             self.atualizar_estatisticas_interface()
             
-            messagebox.showinfo("Otimização", "Banco otimizado com sucesso!")
+            messagebox.showinfo("OtimizaÃ§Ã£o", "Banco otimizado com sucesso!")
             self.status_bar_plus.config(text="Banco otimizado")
             
         except Exception as e:
@@ -802,7 +854,7 @@ class SistemaPlanilhasPlus:
         arquivo = os.path.join(self.pasta_exportacoes, f"resultados_plus_{timestamp}.csv")
         
         # Exportar com TODAS as 39 colunas
-        colunas_completas = ['Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
+        colunas_completas = ['Cliente', 'Arquivo Origem', 'CÃ³digo', 'DescriÃ§Ã£o', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
         
         with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
@@ -812,36 +864,36 @@ class SistemaPlanilhasPlus:
         messagebox.showinfo("Exportado", f"Exportado para {arquivo}\n\nTodas as 39 colunas foram exportadas!")
     
     def exportar_csv_plus(self):
-        """Exporta resultados PLUS para CSV (mesma função do Excel)"""
+        """Exporta resultados PLUS para CSV (mesma funÃ§Ã£o do Excel)"""
         self.exportar_excel_plus()
     
     def mostrar_estatisticas_detalhadas(self):
         stats_text = f"""
-📊 ESTATÍSTICAS DETALHADAS
+ðŸ“Š ESTATÃSTICAS DETALHADAS
 
-🗄️ Banco de Dados:
-• Tamanho: {tamanho_banco_plus():.2f} MB
-• Produtos: {contar_produtos_plus():,}
-• Planilhas: {contar_planilhas_plus():,}
+ðŸ—„ï¸ Banco de Dados:
+â€¢ Tamanho: {tamanho_banco_plus():.2f} MB
+â€¢ Produtos: {contar_produtos_plus():,}
+â€¢ Planilhas: {contar_planilhas_plus():,}
 
-⚡ Performance:
-• Cache: 50MB
-• Memory Map: 256MB
-• Índices: 6 otimizados
+âš¡ Performance:
+â€¢ Cache: 50MB
+â€¢ Memory Map: 256MB
+â€¢ Ãndices: 6 otimizados
 
-🚀 Capacidade:
-• Máximo teórico: Ilimitado
-• Recomendado: 5M+ produtos
-• Testado: 1M+ produtos
+ðŸš€ Capacidade:
+â€¢ MÃ¡ximo teÃ³rico: Ilimitado
+â€¢ Recomendado: 5M+ produtos
+â€¢ Testado: 1M+ produtos
         """
-        messagebox.showinfo("Estatísticas PLUS", stats_text)
+        messagebox.showinfo("EstatÃ­sticas PLUS", stats_text)
     
     def atualizar_estatisticas_interface(self):
         total_produtos = contar_produtos_plus()
         total_planilhas = contar_planilhas_plus()
         tamanho_mb = tamanho_banco_plus()
         
-        stats_text = f"📦 Produtos: {total_produtos:,}  |  📁 Planilhas: {total_planilhas:,}  |  💾 Banco: {tamanho_mb:.1f}MB  |  ⚡ PLUS MODE"
+        stats_text = f"ðŸ“¦ Produtos: {total_produtos:,}  |  ðŸ“ Planilhas: {total_planilhas:,}  |  ðŸ’¾ Banco: {tamanho_mb:.1f}MB  |  âš¡ PLUS MODE"
         self.label_stats_plus.config(text=stats_text)
     
     def atualizar_progresso_plus(self, mensagem):
@@ -864,14 +916,14 @@ class SistemaPlanilhasPlus:
                 
             except Exception as e:
                 messagebox.showerror("Erro", 
-                    "Não foi possível abrir o Sistema Original. Verifique se o arquivo 'sistema.py' existe na pasta.")
+                    "NÃ£o foi possÃ­vel abrir o Sistema Original. Verifique se o arquivo 'sistema.py' existe na pasta.")
     
     def executar(self):
         """Inicia a interface PLUS"""
         self.janela.mainloop()
 
 # ==============================
-# INICIALIZAÇÃO
+# INICIALIZAÃ‡ÃƒO
 # ==============================
 
 if __name__ == "__main__":

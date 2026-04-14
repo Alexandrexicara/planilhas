@@ -1,6 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
-cd /d "%~dp0"
+
+set "PROJECT_DIR=%~dp0"
+if exist "%PROJECT_DIR%app.py" goto :project_ok
+if exist "E:\planilhas.com\app.py" set "PROJECT_DIR=E:\planilhas.com\"
+if exist "C:\planilhas.com\app.py" set "PROJECT_DIR=C:\planilhas.com\"
+
+:project_ok
+cd /d "%PROJECT_DIR%"
+if not exist "app.py" (
+  echo ERRO: pasta do projeto nao encontrada.
+  echo Coloque este .bat na pasta do projeto ou ajuste PROJECT_DIR.
+  pause
+  exit /b 1
+)
 
 echo ==========================================
 echo PLANILHAS - ATUALIZACAO EM 1 CLIQUE
@@ -8,21 +21,30 @@ echo ==========================================
 echo Pasta do projeto: %cd%
 echo.
 
-set "PY_CMD=python"
-where python >nul 2>nul
-if errorlevel 1 (
-  where py >nul 2>nul
-  if errorlevel 1 (
-    echo ERRO: Python nao encontrado.
-    echo Instale o Python e tente novamente.
-    pause
-    exit /b 1
-  )
-  set "PY_CMD=py -3"
-)
-
 if exist ".venv\Scripts\activate.bat" (
   call ".venv\Scripts\activate.bat"
+)
+
+set "PY_CMD="
+if exist ".venv\Scripts\python.exe" (
+  set "PY_CMD=.venv\Scripts\python.exe"
+) else (
+  where python >nul 2>nul
+  if not errorlevel 1 (
+    set "PY_CMD=python"
+  ) else (
+    where py >nul 2>nul
+    if not errorlevel 1 (
+      set "PY_CMD=py -3"
+    )
+  )
+)
+
+if not defined PY_CMD (
+  echo ERRO: Python nao encontrado.
+  echo Instale o Python ou crie a .venv em %cd%.
+  pause
+  exit /b 1
 )
 
 if not exist "icon.ico" (
