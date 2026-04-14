@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste - Sem Reload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 10px;
+        }
+        h1 { font-size: 2em; }
+        p { font-size: 1.2em; }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            margin: 20px;
+        }
+        button:hover { background: #059669; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✅ Teste de Página SEM RELOAD</h1>
+        <p>Esta página NÃO vai recarregar automaticamente</p>
+        <p id="status">Aguardando...</p>
+        <button onclick="testarFetch()">Testar Fetch (sem reload)</button>
+        <p id="resultado"></p>
+    </div>
+
+    <script>
+        // Sem polling, sem reload automático
+        function testarFetch() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(d => {
+                    document.getElementById('resultado').innerText = 
+                        `Produtos: ${d.total_products} | Clientes: ${d.total_clients}`;
+                })
+                .catch(e => console.log('Erro:', e));
+        }
+        
+        document.getElementById('status').innerText = '✅ Página carregada - Sem auto-refresh';
+    </script>
+</body>
+</html>

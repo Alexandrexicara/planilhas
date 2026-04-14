@@ -574,11 +574,9 @@ def executar_modulo_desktop(module_name):
 def executar_app():
     """Inicializa o Flask em modo desktop/web sem abrir console de debug."""
     port = int(os.environ.get("PORT", 5000))
-    debug_flag = str(os.environ.get("FLASK_DEBUG", "0")).lower() in {"1", "true", "yes", "on"}
+    debug_flag = False  # SEMPRE false
     host = '0.0.0.0' if (IS_VERCEL or IS_RENDER) else '127.0.0.1'
-    auto_open_browser = (
-        str(os.environ.get("AUTO_OPEN_BROWSER", "1")).lower() in {"1", "true", "yes", "on"}
-    )
+    auto_open_browser = False  # launcher ja abre o navegador
 
     if auto_open_browser and host == '127.0.0.1':
         abrir_navegador_em_background(f"http://127.0.0.1:{port}")
