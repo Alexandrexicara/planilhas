@@ -251,13 +251,13 @@
                     | Atualizado em: {{ resultado.distribuicao_desktop.atualizado_em }}
                     {% endif %}
                 </p>
-                <a href="{{ resultado.distribuicao_desktop.download_url }}" class="btn btn-warning btn-sm" style="margin-top: 8px;">
-                    Baixar instalador .exe
-                </a>
+                <form method="post" action="{{ resultado.distribuicao_desktop.download_url }}" style="margin-top: 8px;">
+                    <button type="submit" class="btn btn-warning btn-sm">Baixar instalador .exe</button>
+                </form>
                 {% else %}
-                <a href="/download-exe" class="btn btn-warning btn-sm disabled" aria-disabled="true" style="margin-top: 8px; pointer-events: none; opacity: 0.65;">
+                <button type="button" class="btn btn-warning btn-sm disabled" aria-disabled="true" style="margin-top: 8px; pointer-events: none; opacity: 0.65;">
                     Baixar instalador .exe
-                </a>
+                </button>
                 <p style="margin: 6px 0; color: #7a5200; font-size: 13px;">
                     Instalador ainda nao publicado. Coloque o arquivo .exe na pasta <strong>releases/</strong>.
                 </p>

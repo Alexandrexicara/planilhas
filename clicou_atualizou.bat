@@ -37,12 +37,23 @@ if exist "build" rmdir /s /q "build"
 if exist "dist" rmdir /s /q "dist"
 
 echo.
-echo Compilando Planilhas.exe...
+echo [1/2] Compilando Planilhas.exe...
 %PY_CMD% -m PyInstaller --noconfirm --clean --onefile --windowed --name Planilhas --icon icon.ico --add-data "templates;templates" --add-data "static;static" --add-data "banco_plus.db;." --add-data "banco.db;." --add-data "usuarios.db;." --collect-all flask --collect-all werkzeug --collect-all jinja2 --collect-all openpyxl --hidden-import sistema --hidden-import sistema_plus --hidden-import menu_principal --hidden-import usuarios_db --hidden-import gerenciamento_usuarios --hidden-import sistema_online_offline --hidden-import banco_offline app.py
 
 if errorlevel 1 (
   echo.
-  echo ERRO: falha na compilacao.
+  echo ERRO: falha na compilacao do Planilhas.exe.
+  pause
+  exit /b 1
+)
+
+echo.
+echo [2/2] Compilando Planilhas_debug.exe...
+%PY_CMD% -m PyInstaller --noconfirm --onefile --console --name Planilhas_debug --icon icon.ico --add-data "templates;templates" --add-data "static;static" --add-data "banco_plus.db;." --add-data "banco.db;." --add-data "usuarios.db;." --collect-all flask --collect-all werkzeug --collect-all jinja2 --collect-all openpyxl --hidden-import sistema --hidden-import sistema_plus --hidden-import menu_principal --hidden-import usuarios_db --hidden-import gerenciamento_usuarios --hidden-import sistema_online_offline --hidden-import banco_offline app.py
+
+if errorlevel 1 (
+  echo.
+  echo ERRO: falha na compilacao do Planilhas_debug.exe.
   pause
   exit /b 1
 )
@@ -54,17 +65,57 @@ if not exist "dist\Planilhas.exe" (
   exit /b 1
 )
 
-if not exist "releases" mkdir "releases"
-copy /y "dist\Planilhas.exe" "releases\Planilhas.exe" >nul
+if not exist "dist\Planilhas_debug.exe" (
+  echo.
+  echo ERRO: dist\Planilhas_debug.exe nao foi gerado.
+  pause
+  exit /b 1
+)
 
 set "DESKTOP=%USERPROFILE%\Desktop"
+set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "releases" mkdir "releases"
+
+copy /y "dist\Planilhas.exe" "releases\Planilhas.exe" >nul
+copy /y "dist\Planilhas_debug.exe" "releases\Planilhas_debug.exe" >nul
 copy /y "dist\Planilhas.exe" "%DESKTOP%\Planilhas.exe" >nul
+copy /y "dist\Planilhas_debug.exe" "%DESKTOP%\Planilhas_debug.exe" >nul
+
+(
+  echo @echo off
+  echo setlocal
+  echo set "EXE_PATH=%%~dp0Planilhas_debug.exe"
+  echo set "PS_EXE=%%SystemRoot%%\System32\WindowsPowerShell\v1.0\powershell.exe"
+  echo if not exist "%%EXE_PATH%%" ^(
+  echo   echo Nao encontrei "%%EXE_PATH%%".
+  echo   pause
+  echo   exit /b 1
+  echo ^)
+  echo if not exist "%%PS_EXE%%" ^(
+  echo   echo Nao encontrei o PowerShell em "%%PS_EXE%%".
+  echo   pause
+  echo   exit /b 1
+  echo ^)
+  echo "%%PS_EXE%%" -NoExit -ExecutionPolicy Bypass -Command "$env:AUTO_OPEN_BROWSER='1'; ^& '%%EXE_PATH%%'"
+) > "releases\abrir_planilhas_debug_powershell.bat"
+
+copy /y "releases\abrir_planilhas_debug_powershell.bat" "%DESKTOP%\abrir_planilhas_debug_powershell.bat" >nul
 
 echo.
-echo OK: Atualizacao concluida com sucesso.
+echo OK: Atualizacao concluida.
 echo Arquivos atualizados:
 echo - %cd%\dist\Planilhas.exe
+echo - %cd%\dist\Planilhas_debug.exe
 echo - %cd%\releases\Planilhas.exe
+echo - %cd%\releases\Planilhas_debug.exe
 echo - %DESKTOP%\Planilhas.exe
+echo - %DESKTOP%\Planilhas_debug.exe
+echo - %DESKTOP%\abrir_planilhas_debug_powershell.bat
 echo.
+
+if exist "%DESKTOP%\abrir_planilhas_debug_powershell.bat" (
+  echo Abrindo Planilhas_debug automaticamente...
+  start "" "%DESKTOP%\abrir_planilhas_debug_powershell.bat"
+)
+
 pause

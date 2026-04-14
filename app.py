@@ -355,7 +355,7 @@ def index():
     return render_template('index.html', config=SISTEMA_CONFIG)
 
 
-@app.route('/download-exe')
+@app.route('/download-exe', methods=['POST'])
 def download_exe():
     """Baixa o executavel desktop mais recente publicado em releases/."""
     exe = get_latest_desktop_exe()
@@ -373,6 +373,16 @@ def download_exe():
         return redirect(f"/releases/{exe['filename']}")
 
     return send_file(exe['path'], as_attachment=True, download_name=exe['filename'])
+
+
+@app.route('/download-exe', methods=['GET'])
+def download_exe_get():
+    """Evita disparos automaticos de download via GET."""
+    return (
+        "Download disponivel apenas pelo botao oficial. "
+        "Clique em 'Baixar instalador .exe'.",
+        405
+    )
 
 @app.route('/executar-sistema-legado')
 def executar_sistema_legado():
