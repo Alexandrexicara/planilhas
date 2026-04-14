@@ -88,7 +88,10 @@ BUILD_INFO = {
     'commit': os.environ.get('RENDER_GIT_COMMIT', '') or os.environ.get('VERCEL_GIT_COMMIT_SHA', ''),
 }
 
-DESKTOP_RELEASES_DIR = os.path.join(BASE_DIR, 'releases')
+DESKTOP_RELEASES_DIRS = [
+    os.path.join(BASE_DIR, 'releases'),
+    os.path.join(BASE_DIR, 'dist'),
+]
 DESKTOP_POLICY = {
     'max_maquinas': 10,
     'atualizacao_requer_compra': True
@@ -118,23 +121,26 @@ def get_latest_desktop_exe():
 
     Prioriza nomes oficiais para evitar baixar builds antigos como `app.exe`.
     """
-    if not os.path.isdir(DESKTOP_RELEASES_DIR):
-        return None
-
     preferred_names = ['Planilhas.exe', 'SistemaPlanilhas.exe']
-    for preferred_name in preferred_names:
-        preferred_path = os.path.join(DESKTOP_RELEASES_DIR, preferred_name)
-        if os.path.isfile(preferred_path):
-            return {
-                'path': preferred_path,
-                'filename': preferred_name,
-                'updated_at': datetime.fromtimestamp(os.path.getmtime(preferred_path)).strftime('%Y-%m-%d %H:%M:%S')
-            }
+    for base_dir in DESKTOP_RELEASES_DIRS:
+        if not os.path.isdir(base_dir):
+            continue
+        for preferred_name in preferred_names:
+            preferred_path = os.path.join(base_dir, preferred_name)
+            if os.path.isfile(preferred_path):
+                return {
+                    'path': preferred_path,
+                    'filename': preferred_name,
+                    'updated_at': datetime.fromtimestamp(os.path.getmtime(preferred_path)).strftime('%Y-%m-%d %H:%M:%S')
+                }
 
     exes = []
-    for entry in os.scandir(DESKTOP_RELEASES_DIR):
-        if entry.is_file() and entry.name.lower().endswith('.exe'):
-            exes.append(entry.path)
+    for base_dir in DESKTOP_RELEASES_DIRS:
+        if not os.path.isdir(base_dir):
+            continue
+        for entry in os.scandir(base_dir):
+            if entry.is_file() and entry.name.lower().endswith('.exe'):
+                exes.append(entry.path)
 
     if not exes:
         return None
@@ -354,11 +360,17 @@ def download_exe():
     """Baixa o executavel desktop mais recente publicado em releases/."""
     exe = get_latest_desktop_exe()
     if not exe:
+        debug_dirs = ", ".join([d for d in DESKTOP_RELEASES_DIRS])
         return (
             "Arquivo .exe ainda nao foi publicado. "
-            "Adicione o instalador em releases/ para liberar o download.",
+            f"Adicione o instalador em releases/ ou dist/ para liberar o download. Pastas verificadas: {debug_dirs}",
             404
         )
+
+    # Em ambiente serverless (ex.: Vercel), arquivos grandes nao devem ser
+    # retornados pela funcao Python; o ideal e servir como arquivo estatico.
+    if IS_VERCEL:
+        return redirect(f"/releases/{exe['filename']}")
 
     return send_file(exe['path'], as_attachment=True, download_name=exe['filename'])
 
