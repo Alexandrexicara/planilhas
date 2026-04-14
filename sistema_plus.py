@@ -371,60 +371,53 @@ def detectar_colunas_excel_plus(cabecalhos):
     
     return mapeamento
 
-def buscar_produtos_plus(termo, cliente_filtro=None, limit=10000):
-    """Busca otimizada com TODAS as 39 colunas - case-insensitive"""
-    print(f"DEBUG: Buscar produtos - termo: '{termo}', cliente: '{cliente_filtro}'")
-    
-    # DEBUG: Verificar dados no banco antes da busca
-    print(f"DEBUG: Verificando amostra de dados no banco...")
-    try:
-        get_cursor_plus().execute("SELECT cliente, codigo, descricao FROM produtos_plus LIMIT 3")
-        amostra = get_cursor_plus().fetchall()
-        print(f"DEBUG: Amostra no banco: {amostra}")
-    except Exception as e:
-        print(f"DEBUG: Erro ao verificar amostra: {e}")
-    
-    query = """
-        SELECT cliente, arquivo_origem, codigo, descricao, peso, valor, ncm,
-               doc, rev, code, quantity, um, ccy, total_amount, marca,
-               inner_qty, master_qty, total_ctns, gross_weight, net_weight_pc,
-               gross_weight_pc, net_weight_ctn, gross_weight_ctn, factory,
-               address, telephone, ean13, dun14_inner, dun14_master,
-               length, width, height, cbm, prc_kg, li, obs, status
-        FROM produtos_plus
-        WHERE 1=1
-    """
+COLUNAS_PLUS_SELECT = [
+    'cliente', 'arquivo_origem', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
+    'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount', 'marca',
+    'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
+    'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
+    'address', 'telephone', 'ean13', 'dun14_inner', 'dun14_master',
+    'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status'
+]
+
+
+def buscar_produtos_plus(termo='', cliente_filtro='Todos', limit=10000):
+    """Busca produtos no PLUS em todas as colunas textuais."""
+    sql_colunas = ", ".join(COLUNAS_PLUS_SELECT)
+    query = f"SELECT {sql_colunas} FROM produtos_plus WHERE 1=1"
     params = []
-    
-    if termo:
-        # Busca case-insensitive usando LOWER()
-        query += " AND (LOWER(codigo) LIKE LOWER(?) OR LOWER(descricao) LIKE LOWER(?) OR LOWER(ncm) LIKE LOWER(?))"
-        params.extend([f"%{termo}%", f"%{termo}%", f"%{termo}%"])
-        print(f"DEBUG: Termo de busca adicionado (case-insensitive): {termo}")
-    
+
+    if termo and termo != '*':
+        conditions = " OR ".join([
+            f"LOWER(COALESCE({col}, '')) LIKE LOWER(?)" for col in COLUNAS_PLUS_SELECT
+        ])
+        query += f" AND ({conditions})"
+        params.extend([f"%{termo}%"] * len(COLUNAS_PLUS_SELECT))
+
     if cliente_filtro and cliente_filtro != "Todos":
-        query += " AND LOWER(cliente) = LOWER(?)"
+        query += " AND LOWER(TRIM(COALESCE(cliente, ''))) = LOWER(TRIM(?))"
         params.append(cliente_filtro)
-        print(f"DEBUG: Filtro de cliente adicionado: {cliente_filtro}")
-    
-    query += " ORDER BY cliente, descricao LIMIT ?"
+
+    query += " ORDER BY cliente, arquivo_origem LIMIT ?"
     params.append(limit)
-    
-    print(f"DEBUG: Query: {query[:200]}...")
-    print(f"DEBUG: Params: {params}")
-    
+
     try:
         get_cursor_plus().execute(query, params)
-        resultados = get_cursor_plus().fetchall()
-        print(f"DEBUG: Resultados encontrados: {len(resultados)}")
-        if resultados:
-            print(f"DEBUG: Primeiro resultado: {resultados[0]}")
-        return resultados
+        return get_cursor_plus().fetchall()
     except Exception as e:
         print(f"DEBUG: Erro na busca PLUS: {e}")
-        import traceback
-        traceback.print_exc()
         return []
+
+
+def listar_clientes_plus():
+    """Lista clientes unicos do banco PLUS."""
+    get_cursor_plus().execute("""
+        SELECT DISTINCT TRIM(cliente)
+        FROM produtos_plus
+        WHERE TRIM(COALESCE(cliente, '')) <> ''
+        ORDER BY TRIM(cliente)
+    """)
+    return [row[0] for row in get_cursor_plus().fetchall()]
 
 def contar_produtos_plus():
     """Contagem otimizada"""
@@ -482,6 +475,7 @@ class SistemaPlanilhasPlus:
         
         self.criar_interface_plus()
         self.atualizar_estatisticas_interface()
+        self.atualizar_lista_clientes_plus()
     
     def carregar_configuracao_exportacoes_plus(self):
         """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
@@ -622,6 +616,7 @@ class SistemaPlanilhasPlus:
         self.combo_clientes_plus = ttk.Combobox(frame_import, textvariable=self.cliente_selecionado, 
                                                state='readonly', width=30)
         self.combo_clientes_plus.pack(side='left', padx=5)
+        self.combo_clientes_plus['values'] = ["Todos"]
         
         # Frame de resultados
         frame_resultados = tk.LabelFrame(self.janela, text="📊 Resultados (Capacidade Máxima)", 
@@ -682,34 +677,36 @@ class SistemaPlanilhasPlus:
                                        relief='sunken', anchor='w', bg='#2c3e50', fg='white')
         self.status_bar_plus.pack(side='bottom', fill='x')
     
+    def atualizar_lista_clientes_plus(self):
+        """Atualiza os clientes no filtro, igual ao sistema original."""
+        clientes = ["Todos"] + listar_clientes_plus()
+        self.combo_clientes_plus['values'] = clientes
+        if self.cliente_selecionado.get() not in clientes:
+            self.cliente_selecionado.set("Todos")
+
     def executar_busca_plus(self):
         termo = self.termo_busca.get().strip()
         cliente = self.cliente_selecionado.get()
-        
-        print(f"DEBUG: Executar busca PLUS - termo: '{termo}', cliente: '{cliente}'")
-        
+
         # Limpar tabela
         for item in self.tabela_plus.get_children():
             self.tabela_plus.delete(item)
-        
+
+        # Mesmo comportamento do sistema original:
+        # sem termo e com cliente "Todos" => listar tudo
+        if not termo and cliente != "Todos":
+            termo = "*"
         if not termo and cliente == "Todos":
-            print(f"DEBUG: Nenhum termo ou cliente selecionado")
-            self.status_bar_plus.config(text="Digite um termo ou selecione cliente")
-            return
-        
+            termo = "*"
+
         try:
-            print(f"DEBUG: Chamando buscar_produtos_plus...")
             resultados = buscar_produtos_plus(termo, cliente, limit=10000)
-            print(f"DEBUG: Resultados retornados: {len(resultados)}")
-            
             for resultado in resultados:
                 self.tabela_plus.insert('', 'end', values=resultado)
-            
-            self.label_resultados_plus.config(text=f"{len(resultados):,} resultados")
-            self.status_bar_plus.config(text=f"Busca PLUS: {len(resultados):,} resultados")
-            
+
+            self.label_resultados_plus.config(text=f"{len(resultados):,} resultados encontrados")
+            self.status_bar_plus.config(text=f"Busca PLUS concluida: {len(resultados):,} resultados")
         except Exception as e:
-            print(f"DEBUG: Erro na busca PLUS interface: {e}")
             messagebox.showerror("Erro", f"Erro na busca: {str(e)}")
     
     def limpar_busca_plus(self):
@@ -741,6 +738,7 @@ class SistemaPlanilhasPlus:
                     total_geral += importados
                 
                 self.atualizar_estatisticas_interface()
+                self.atualizar_lista_clientes_plus()
                 messagebox.showinfo("Importação PLUS", f"Importados {total_geral:,} produtos!")
                 self.status_bar_plus.config(text=f"Importação concluída: {total_geral:,} produtos")
                 
@@ -764,6 +762,7 @@ class SistemaPlanilhasPlus:
                         total_geral += importados
                     
                     self.atualizar_estatisticas_interface()
+                    self.atualizar_lista_clientes_plus()
                     messagebox.showinfo("Importação PLUS", f"Importados {total_geral:,} produtos!")
                     
                 except Exception as e:
