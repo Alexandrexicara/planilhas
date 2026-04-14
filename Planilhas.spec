@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['launcher.py'],
+    ['menu_principal.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['sistema', 'sistema_plus'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

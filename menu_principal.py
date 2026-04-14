@@ -361,20 +361,22 @@ class MenuPrincipal:
         btn_sair.pack(pady=8)
         
     def abrir_sistema_original(self):
-        """Abre o sistema original na web"""
+        """Abre o sistema original em nova janela Tkinter"""
         try:
-            import webbrowser
-            webbrowser.open('http://localhost:5000')
+            from sistema import SistemaPlanilhas
+            sistema = SistemaPlanilhas()
+            sistema.executar()
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível abrir o sistema: {e}")
+            messagebox.showerror("Erro", f"Não foi possível abrir o sistema: {str(e)}\nVerifique se o arquivo 'sistema.py' existe.")
     
     def abrir_sistema_plus(self):
-        """Abre o sistema web na aba de produtos"""
+        """Abre o sistema PLUS em nova janela Tkinter"""
         try:
-            import webbrowser
-            webbrowser.open('http://localhost:5000/catalog')
+            from sistema_plus import SistemaPlanilhasPlus
+            sistema_plus = SistemaPlanilhasPlus()
+            sistema_plus.executar()
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível abrir o sistema: {e}")
+            messagebox.showerror("Erro", f"Não foi possível abrir o sistema PLUS: {str(e)}\nVerifique se o arquivo 'sistema_plus.py' existe.")
     
     def gerenciar_usuarios(self):
         """Abre tela de gerenciamento de usuários (admin only)"""

@@ -114,9 +114,22 @@ def get_db_connection():
 
 
 def get_latest_desktop_exe():
-    """Retorna o executavel mais recente em `releases/`."""
+    """Retorna o executavel de distribuicao em `releases/`.
+
+    Prioriza nomes oficiais para evitar baixar builds antigos como `app.exe`.
+    """
     if not os.path.isdir(DESKTOP_RELEASES_DIR):
         return None
+
+    preferred_names = ['Planilhas.exe', 'SistemaPlanilhas.exe']
+    for preferred_name in preferred_names:
+        preferred_path = os.path.join(DESKTOP_RELEASES_DIR, preferred_name)
+        if os.path.isfile(preferred_path):
+            return {
+                'path': preferred_path,
+                'filename': preferred_name,
+                'updated_at': datetime.fromtimestamp(os.path.getmtime(preferred_path)).strftime('%Y-%m-%d %H:%M:%S')
+            }
 
     exes = []
     for entry in os.scandir(DESKTOP_RELEASES_DIR):
@@ -593,4 +606,3 @@ if __name__ == '__main__':
     if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
         sys.exit(executar_modulo_desktop(sys.argv[2]))
     executar_app()
-
