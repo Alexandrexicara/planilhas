@@ -9,6 +9,22 @@ import csv
 import json
 from PIL import Image, ImageTk
 
+# Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def sanitizar_nome_arquivo(nome):
+    """Gera um nome de arquivo seguro no Windows."""
+    import re
+    if nome is None:
+        return ''
+    nome = str(nome).strip()
+    nome = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', nome)
+    nome = re.sub(r'\\s+', ' ', nome).strip()
+    nome = nome.strip(' ._')
+    if len(nome) > 120:
+        nome = nome[:120].rstrip(' ._')
+    return nome
+
 # ==============================
 # BANCO DE DADOS - VERSÃƒO PLUS
 # ==============================
@@ -45,6 +61,7 @@ def criar_banco_plus():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         cliente TEXT COLLATE NOCASE,
         arquivo_origem TEXT,
+        picture TEXT,
         codigo TEXT COLLATE NOCASE,
         descricao TEXT COLLATE NOCASE,
         peso TEXT,
@@ -84,6 +101,13 @@ def criar_banco_plus():
         hash_dados TEXT
     )
     """)
+    
+    # Migracao automatica para bancos antigos sem a coluna fisica picture
+    cursor.execute("PRAGMA table_info(produtos_plus)")
+    colunas_existentes = {row[1] for row in cursor.fetchall()}
+    if 'picture' not in colunas_existentes:
+        cursor.execute("ALTER TABLE produtos_plus ADD COLUMN picture TEXT DEFAULT ''")
+        print("DEBUG: Coluna fisica 'picture' adicionada em produtos_plus")
     
     # Ãndices compostos para busca ultra-rÃ¡pida
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_plus ON produtos_plus(cliente)")
@@ -170,6 +194,10 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                     coluna_banco = colunas_detectadas[i]
                     dados[coluna_banco] = str(cell).strip() if cell else ''
             
+            # Fallback: se PICTURE nao foi mapeada, usa o valor da primeira coluna
+            if not dados.get('picture') and len(row) > 0 and row[0]:
+                dados['picture'] = str(row[0]).strip()
+            
             # Adicionar campos fixos
             dados['cliente'] = cliente
             dados['arquivo_origem'] = os.path.basename(caminho_arquivo)
@@ -190,10 +218,11 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                     total_duplicatas += 1
                     continue
             
-            # Adicionar TODAS as 39 colunas no batch (ordem do banco)
+            # Adicionar todas as colunas no batch (ordem do INSERT)
             dados_batch.append((
                 dados['cliente'],
                 dados['arquivo_origem'],
+                dados['picture'],
                 dados['codigo'],
                 dados['descricao'],
                 dados['peso'],
@@ -233,17 +262,17 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 hash_dados
             ))
             
-            # Insert em batch com TODAS as 39 colunas
+            # Insert em batch com todas as colunas
             if len(dados_batch) >= batch_size:
                 get_cursor_plus().executemany("""
                     INSERT INTO produtos_plus
-                    (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                    (cliente, arquivo_origem, picture, codigo, descricao, peso, valor, ncm, doc, rev, code,
                      quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                      total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                      net_weight_ctn, gross_weight_ctn, factory, address, telephone,
                      ean13, dun14_inner, dun14_master, length, width, height, cbm,
                      prc_kg, li, obs, status, data_importacao, hash_dados)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, dados_batch)
                 get_connection_plus().commit()
                 total_importados += len(dados_batch)
@@ -252,17 +281,17 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 if progress_callback and total_importados % 10000 == 0:
                     progress_callback(f"Importados: {total_importados:,}")
         
-        # Insert final com TODAS as 39 colunas
+        # Insert final com todas as colunas
         if dados_batch:
             get_cursor_plus().executemany("""
                 INSERT INTO produtos_plus
-                (cliente, arquivo_origem, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                (cliente, arquivo_origem, picture, codigo, descricao, peso, valor, ncm, doc, rev, code,
                  quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                  total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                  net_weight_ctn, gross_weight_ctn, factory, address, telephone,
                  ean13, dun14_inner, dun14_master, length, width, height, cbm,
                  prc_kg, li, obs, status, data_importacao, hash_dados)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, dados_batch)
             get_connection_plus().commit()
             total_importados += len(dados_batch)
@@ -286,7 +315,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
 
 # Definir colunas fixas do sistema PLUS (mesma ordem do banco)
 COLUNAS_BANCO_PLUS = [
-    'cliente', 'arquivo_origem', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
+    'cliente', 'arquivo_origem', 'picture', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
     'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount', 'marca',
     'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
     'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
@@ -296,6 +325,7 @@ COLUNAS_BANCO_PLUS = [
 
 # Mapeamento de sinÃ´nimos para colunas PLUS
 MAPEAMENTO_SINONIMOS_PLUS = {
+    'picture': ['picture', 'imagem', 'image', 'foto', 'url', 'image url', 'img'],
     'codigo': ['codigo', 'cÃ³digo', 'cod', 'code', 'item', 'sku', 'referencia', 'referÃªncia', 'id', 'produto_id'],
     'descricao': ['descricao', 'descriÃ§Ã£o', 'produto', 'item_desc', 'name', 'descriÃ§Ã£o do produto', 'titulo', 'nome', 'descriÃ§Ã£o portugues', 'description portuguese', 'descriÃ§Ã£o portugues (description portuguese)'],
     'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
@@ -371,30 +401,73 @@ def detectar_colunas_excel_plus(cabecalhos):
     
     return mapeamento
 
-COLUNAS_PLUS_SELECT = [
-    'cliente', 'arquivo_origem', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
-    'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount', 'marca',
-    'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
-    'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
-    'address', 'telephone', 'ean13', 'dun14_inner', 'dun14_master',
+COLUNAS_PLUS_BUSCA = [
+    'cliente', 'arquivo_origem', 'picture', 'data_importacao', 'codigo', 'descricao', 'peso',
+    'valor', 'ncm', 'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount',
+    'marca', 'inner_qty', 'master_qty', 'total_ctns', 'gross_weight',
+    'net_weight_pc', 'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn',
+    'factory', 'address', 'telephone', 'ean13', 'dun14_inner', 'dun14_master',
     'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status'
 ]
-COLUNAS_PLUS_UI = tuple([c.upper() for c in COLUNAS_PLUS_SELECT])
+
+# Exibicao no PLUS igual ao sistema.py (mesmos nomes e sequencia principais)
+COLUNAS_PLUS_EXIBICAO = [
+    ('cliente', 'CLIENTE'),
+    ('arquivo_origem', 'ARQUIVO_ORIGEM'),
+    ('data_importacao', 'DATA_IMPORTACAO'),
+    ('picture', 'PICTURE'),
+    ('doc', 'DOC'),
+    ('rev', 'REV'),
+    ('codigo', 'ITEM'),
+    ('code', 'CODE'),
+    ('quantity', 'QUANTITY'),
+    ('um', 'UM'),
+    ('ccy', 'CCY'),
+    ('valor', 'UNIT PRICE UMO'),
+    ('total_amount', 'TOTAL AMOUNT UMO'),
+    ('descricao', 'DESCRICAO PORTUGUES (DESCRIPTION PORTUGUESE)'),
+    ('marca', 'MARCA (BRAND)'),
+    ('inner_qty', 'INNER QUANTITY'),
+    ('master_qty', 'MASTER QUANTITY'),
+    ('total_ctns', 'TOTAL CTNS'),
+    ('peso', 'TOTAL NET WEIGHT( KG )'),
+    ('gross_weight', 'TOTAL GROSS WEIGHT( KG )'),
+    ('net_weight_pc', 'NET WEIGHT / PC( G )'),
+    ('gross_weight_pc', 'GROSS WEIGHT / PC( G )'),
+    ('net_weight_ctn', 'NET WEIGHT / CTN( KG )'),
+    ('gross_weight_ctn', 'GROSS WEIGHT / CTN( KG )'),
+    ('factory', 'NAME OF FACTORY'),
+    ('address', 'ADDRESS OF FACTORY'),
+    ('telephone', 'TELEPHONE'),
+    ('ean13', 'EAN13'),
+    ('dun14_inner', 'DUN-14 INNER'),
+    ('dun14_master', 'DUN-14 MASTER'),
+    ('length', 'LENGTH CTN'),
+    ('width', 'WIDTH CTN'),
+    ('height', 'HEIGHT CTN'),
+    ('cbm', 'TOTAL CBM'),
+    ('ncm', 'HS CODE'),
+    ('prc_kg', 'PRC/KG'),
+    ('li', 'LI'),
+    ('obs', 'OBS'),
+    ('status', 'STATUS DA COMPRA')
+]
+COLUNAS_PLUS_UI = tuple([nome for _, nome in COLUNAS_PLUS_EXIBICAO])
 
 
 def buscar_produtos_plus(termo='', cliente_filtro='Todos', planilha_filtro='Todas', limit=10000):
     """Busca produtos no PLUS em todas as colunas textuais."""
     print(f"DEBUG: Buscar PLUS - termo='{termo}' cliente='{cliente_filtro}' planilha='{planilha_filtro}'")
-    sql_colunas = ", ".join(COLUNAS_PLUS_SELECT)
+    sql_colunas = ", ".join([f'{origem} AS "{nome}"' for origem, nome in COLUNAS_PLUS_EXIBICAO])
     query = f"SELECT {sql_colunas} FROM produtos_plus WHERE 1=1"
     params = []
 
     if termo and termo != '*':
         conditions = " OR ".join([
-            f"LOWER(COALESCE({col}, '')) LIKE LOWER(?)" for col in COLUNAS_PLUS_SELECT
+            f"LOWER(COALESCE({col}, '')) LIKE LOWER(?)" for col in COLUNAS_PLUS_BUSCA
         ])
         query += f" AND ({conditions})"
-        params.extend([f"%{termo}%"] * len(COLUNAS_PLUS_SELECT))
+        params.extend([f"%{termo}%"] * len(COLUNAS_PLUS_BUSCA))
 
     if cliente_filtro and cliente_filtro != "Todos":
         query += " AND LOWER(TRIM(COALESCE(cliente, ''))) = LOWER(TRIM(?))"
@@ -501,33 +574,72 @@ class SistemaPlanilhasPlus:
         self.atualizar_lista_planilhas_plus()
         self.executar_busca_plus()
     
+    def normalizar_pasta_exportacoes_plus(self, pasta):
+        """Normaliza a pasta de exportacoes e evita exportacoes/exportacoes/..."""
+        pasta_base = os.path.normpath(pasta) if pasta else 'exportacoes'
+        drive, tail = os.path.splitdrive(pasta_base)
+        is_abs = tail.startswith(os.sep)
+        partes = [p for p in tail.split(os.sep) if p]
+        
+        partes_limpas = []
+        for parte in partes:
+            if (
+                partes_limpas
+                and partes_limpas[-1].lower() == 'exportacoes'
+                and parte.lower() == 'exportacoes'
+            ):
+                continue
+            partes_limpas.append(parte)
+        
+        if not partes_limpas:
+            partes_limpas = ['exportacoes']
+        elif partes_limpas[-1].lower() != 'exportacoes':
+            partes_limpas.append('exportacoes')
+        
+        prefixo = ''
+        if drive:
+            prefixo = drive + (os.sep if is_abs else '')
+        elif is_abs:
+            prefixo = os.sep
+        
+        return prefixo + os.sep.join(partes_limpas)
+    
     def carregar_configuracao_exportacoes_plus(self):
         """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
-        arquivo_config = "config_exportacoes_plus.json"
+        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes_plus.json")
+        pasta_padrao = os.path.join(BASE_DIR, "exportacoes")
+        
         if os.path.exists(arquivo_config):
             try:
                 with open(arquivo_config, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    pasta = config.get('pasta_exportacoes', 'exportacoes')
-                    if os.path.exists(pasta):
-                        return pasta
-                    if not os.path.exists('exportacoes'):
-                        os.makedirs('exportacoes')
-                    return 'exportacoes'
+                    pasta = config.get('pasta_exportacoes', pasta_padrao)
+                    pasta_norm = os.path.abspath(self.normalizar_pasta_exportacoes_plus(pasta))
+                    os.makedirs(pasta_norm, exist_ok=True)
+                    print(f"DEBUG CONFIG PLUS: arquivo_config={arquivo_config}")
+                    print(f"DEBUG CONFIG PLUS: pasta_raw={pasta}")
+                    print(f"DEBUG CONFIG PLUS: pasta_norm={pasta_norm}")
+                    
+                    # Corrige automaticamente configuracoes antigas quebradas
+                    if pasta != pasta_norm:
+                        self.salvar_configuracao_exportacoes_plus(pasta_norm)
+                    
+                    return pasta_norm
             except Exception as e:
                 print(f"DEBUG: Erro ao carregar configuracao PLUS: {e}")
         
-        if not os.path.exists('exportacoes'):
-            os.makedirs('exportacoes')
-        return 'exportacoes'
+        os.makedirs(pasta_padrao, exist_ok=True)
+        return pasta_padrao
     
     def salvar_configuracao_exportacoes_plus(self, pasta):
         """Salva a configuracao da pasta exportacoes em um arquivo JSON"""
-        arquivo_config = "config_exportacoes_plus.json"
+        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes_plus.json")
         try:
+            pasta_norm = os.path.abspath(self.normalizar_pasta_exportacoes_plus(pasta))
             with open(arquivo_config, 'w', encoding='utf-8') as f:
-                json.dump({'pasta_exportacoes': pasta}, f, indent=4)
-            print(f"DEBUG: Configuracao PLUS salva: {pasta}")
+                json.dump({'pasta_exportacoes': pasta_norm}, f, indent=4)
+            print(f"DEBUG: Configuracao PLUS salva: {pasta_norm}")
+            print(f"DEBUG CONFIG PLUS: arquivo_config={arquivo_config}")
         except Exception as e:
             print(f"DEBUG: Erro ao salvar configuracao PLUS: {e}")
     
@@ -539,9 +651,10 @@ class SistemaPlanilhasPlus:
         )
         
         if pasta_escolhida:
-            pasta_completa = os.path.join(pasta_escolhida, "exportacoes")
-            if not os.path.exists(pasta_completa):
-                os.makedirs(pasta_completa)
+            pasta_completa = os.path.abspath(self.normalizar_pasta_exportacoes_plus(pasta_escolhida))
+            os.makedirs(pasta_completa, exist_ok=True)
+            print(f"DEBUG CONFIG PLUS: pasta_escolhida={pasta_escolhida}")
+            print(f"DEBUG CONFIG PLUS: pasta_final={pasta_completa}")
             
             self.pasta_exportacoes = pasta_completa
             self.salvar_configuracao_exportacoes_plus(pasta_completa)
@@ -680,7 +793,7 @@ class SistemaPlanilhasPlus:
         self.tabela_plus = ttk.Treeview(frame_tabela, columns=self.colunas_plus, show='headings', height=20)
         
         for col in self.colunas_plus:
-            self.tabela_plus.heading(col, text=col)
+            self.tabela_plus.heading(col, text=col.replace('_', ' '))
             col_norm = col.lower()
             if 'descricao' in col_norm:
                 self.tabela_plus.column(col, width=400)
@@ -846,22 +959,77 @@ class SistemaPlanilhasPlus:
             messagebox.showwarning("Aviso", "Sem resultados para exportar!")
             return
         
-        # Criar pasta exportacoes automaticamente
-        if not os.path.exists(self.pasta_exportacoes):
-            os.makedirs(self.pasta_exportacoes)
-        
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        arquivo = os.path.join(self.pasta_exportacoes, f"resultados_plus_{timestamp}.csv")
-        
-        # Exportar com TODAS as 39 colunas
-        colunas_completas = ['Cliente', 'Arquivo Origem', 'CÃ³digo', 'DescriÃ§Ã£o', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
-        
-        with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            writer.writerow(colunas_completas)
-            writer.writerows(resultados)
-        
-        messagebox.showinfo("Exportado", f"Exportado para {arquivo}\n\nTodas as 39 colunas foram exportadas!")
+        try:
+            pasta_destino = os.path.abspath(self.normalizar_pasta_exportacoes_plus(self.pasta_exportacoes))
+            os.makedirs(pasta_destino, exist_ok=True)
+            print(f"DEBUG EXPORT PLUS: cwd={os.getcwd()}")
+            print(f"DEBUG EXPORT PLUS: base_dir={BASE_DIR}")
+            print(f"DEBUG EXPORT PLUS: pasta_configurada={self.pasta_exportacoes}")
+            print(f"DEBUG EXPORT PLUS: pasta_destino={pasta_destino}")
+            print(f"DEBUG EXPORT PLUS: linhas={len(resultados)}")
+            
+            # Mantem configuracao sempre corrigida
+            if pasta_destino != self.pasta_exportacoes:
+                self.pasta_exportacoes = pasta_destino
+                self.salvar_configuracao_exportacoes_plus(pasta_destino)
+            
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+            # Exportar com nome da planilha importada (ARQUIVO_ORIGEM)
+            colunas_completas = list(self.colunas_plus)
+            idx_cliente = colunas_completas.index('CLIENTE') if 'CLIENTE' in colunas_completas else 0
+            idx_arquivo = colunas_completas.index('ARQUIVO_ORIGEM') if 'ARQUIVO_ORIGEM' in colunas_completas else 1
+
+            grupos = {}
+            for row in resultados:
+                cliente = row[idx_cliente] if idx_cliente < len(row) else ''
+                arquivo_origem = row[idx_arquivo] if idx_arquivo < len(row) else ''
+                chave = (cliente or '', arquivo_origem or '')
+                grupos.setdefault(chave, []).append(row)
+
+            arquivos_gerados = []
+            for (cliente, arquivo_origem), rows in grupos.items():
+                base_planilha = os.path.splitext(str(arquivo_origem or 'resultado'))[0]
+                base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
+                base_cliente = sanitizar_nome_arquivo(cliente) or 'cliente'
+                nome_saida_base = f"{base_cliente}__{base_planilha}__{timestamp}.csv"
+                caminho = os.path.join(pasta_destino, nome_saida_base)
+
+                # Evitar sobrescrever em caso de colisao
+                if os.path.exists(caminho):
+                    n = 2
+                    while True:
+                        alt = os.path.join(pasta_destino, f"{base_cliente}__{base_planilha}__{timestamp}_{n}.csv")
+                        if not os.path.exists(alt):
+                            caminho = alt
+                            break
+                        n += 1
+
+                with open(caminho, 'w', newline='', encoding='utf-8-sig') as f:
+                    writer = csv.writer(f, delimiter=';')
+                    writer.writerow(colunas_completas)
+                    writer.writerows(rows)
+                    f.flush()
+                    os.fsync(f.fileno())
+
+                if not os.path.exists(caminho):
+                    raise FileNotFoundError(f"Arquivo nao foi criado: {caminho}")
+
+                print(f"DEBUG EXPORT PLUS: arquivo={caminho} | criado=True | tamanho={os.path.getsize(caminho)}")
+                arquivos_gerados.append(caminho)
+
+            if len(arquivos_gerados) == 1:
+                arquivo = arquivos_gerados[0]
+                self.status_bar_plus.config(text=f"Exportado: {arquivo}")
+                messagebox.showinfo("Exportado", f"Exportado para:\n{arquivo}\n\nColunas exportadas: {len(colunas_completas)}")
+            else:
+                self.status_bar_plus.config(text=f"Exportados {len(arquivos_gerados)} arquivos")
+                messagebox.showinfo("Exportado", f"Exportados {len(arquivos_gerados)} arquivos em:\n{pasta_destino}")
+        except Exception as e:
+            import traceback
+            print(f"DEBUG EXPORT PLUS: ERRO ao exportar: {e}")
+            traceback.print_exc()
+            messagebox.showerror("Erro de Exportacao", f"Nao foi possivel exportar:\n{str(e)}")
     
     def exportar_csv_plus(self):
         """Exporta resultados PLUS para CSV (mesma funÃ§Ã£o do Excel)"""

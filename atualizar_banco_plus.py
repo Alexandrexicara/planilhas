@@ -39,6 +39,7 @@ def atualizar_banco_plus():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         cliente TEXT COLLATE NOCASE,
         arquivo_origem TEXT,
+        picture TEXT,
         codigo TEXT COLLATE NOCASE,
         descricao TEXT COLLATE NOCASE,
         peso TEXT,

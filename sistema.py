@@ -9,6 +9,9 @@ from datetime import datetime
 import csv
 from PIL import Image, ImageTk
 
+# Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ==============================
 # BANCO DE DADOS
 # ==============================
@@ -359,6 +362,12 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
             if cab in colunas_banco_list:
                 mapeamento[i] = cab
                 print(f"✅ Coluna {i}: '{cab}' -> MAPEADA")
+            elif str(cab).strip().lower() in [
+                'picture', 'imagem', 'image', 'foto', 'url',
+                'image url', 'url da imagem', 'link imagem', 'link da imagem'
+            ]:
+                mapeamento[i] = 'PICTURE'
+                print(f"✅ Coluna {i}: '{cab}' -> MAPEADA (sinônimo: 'PICTURE')")
             else:
                 # Tentar encontrar com normalização (fallback)
                 nome_norm = normalizar_nome_coluna(cab)
@@ -427,7 +436,8 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
                     col_name = mapeamento[i]
                     # Se for a coluna PICTURE (índice 0), usar nome da linha 1
                     if col_name == 'PICTURE':
-                        valores[col_name] = nome_imagem_principal
+                        picture_valor = str(cell).strip() if cell is not None else ''
+                        valores[col_name] = picture_valor or nome_imagem_principal
                     else:
                         valores[col_name] = str(cell).strip() if cell is not None else ''
             
@@ -687,20 +697,113 @@ def contar_importacoes():
 # FUNÇÕES DE EXPORTAÇÃO
 # ==============================
 
-def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None):
+def normalizar_pasta_exportacoes(pasta):
+    """Normaliza pasta de exportacoes e evita exportacoes/exportacoes/..."""
+    pasta_base = os.path.normpath(pasta) if pasta else 'exportacoes'
+    drive, tail = os.path.splitdrive(pasta_base)
+    is_abs = tail.startswith(os.sep)
+    partes = [p for p in tail.split(os.sep) if p]
+    
+    partes_limpas = []
+    for parte in partes:
+        if (
+            partes_limpas
+            and partes_limpas[-1].lower() == 'exportacoes'
+            and parte.lower() == 'exportacoes'
+        ):
+            continue
+        partes_limpas.append(parte)
+    
+    if not partes_limpas:
+        partes_limpas = ['exportacoes']
+    elif partes_limpas[-1].lower() != 'exportacoes':
+        partes_limpas.append('exportacoes')
+    
+    prefixo = ''
+    if drive:
+        prefixo = drive + (os.sep if is_abs else '')
+    elif is_abs:
+        prefixo = os.sep
+    
+    return prefixo + os.sep.join(partes_limpas)
+
+def sanitizar_nome_arquivo(nome):
+    """Gera um nome de arquivo seguro no Windows."""
+    import re
+    if nome is None:
+        return ''
+    nome = str(nome).strip()
+    # Remover caracteres proibidos no Windows: <>:"/\\|?* e controles
+    nome = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', nome)
+    nome = re.sub(r'\\s+', ' ', nome).strip()
+    nome = nome.strip(' ._')
+    if len(nome) > 120:
+        nome = nome[:120].rstrip(' ._')
+    return nome
+
+def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, colunas=None):
     """Exporta resultados da busca (versão sem pandas)"""
     if not resultados:
+        print("DEBUG EXPORT PY: sem resultados, exportacao cancelada")
         return None
     
     # Usar pasta configurada ou pasta padrao
     if pasta_exportacoes is None:
-        pasta_exportacoes = "exportacoes"
+        pasta_exportacoes = os.path.join(BASE_DIR, "exportacoes")
+    pasta_exportacoes = os.path.abspath(normalizar_pasta_exportacoes(pasta_exportacoes))
+    
+    print(f"DEBUG EXPORT PY: cwd={os.getcwd()}")
+    print(f"DEBUG EXPORT PY: base_dir={BASE_DIR}")
+    print(f"DEBUG EXPORT PY: pasta_destino={pasta_exportacoes}")
+    print(f"DEBUG EXPORT PY: formato={formato} | linhas={len(resultados)}")
     
     # Criar pasta exportacoes automaticamente
-    if not os.path.exists(pasta_exportacoes):
-        os.makedirs(pasta_exportacoes)
+    os.makedirs(pasta_exportacoes, exist_ok=True)
     
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    header = None
+    if colunas:
+        header = [str(c) for c in colunas]
+        max_len = max((len(r) for r in resultados), default=0)
+        if max_len and len(header) > max_len:
+            header = header[:max_len]
+        elif max_len and len(header) < max_len:
+            header = header + [f"COL_{i}" for i in range(len(header) + 1, max_len + 1)]
+
+    # Exportar com nome da planilha (arquivo_origem) quando possivel
+    if formato in ('excel', 'csv') and header and 'ARQUIVO_ORIGEM' in header and 'CLIENTE' in header:
+        idx_cliente = header.index('CLIENTE')
+        idx_arquivo = header.index('ARQUIVO_ORIGEM')
+        grupos = {}
+        for row in resultados:
+            cliente = row[idx_cliente] if idx_cliente < len(row) else ''
+            arquivo_origem = row[idx_arquivo] if idx_arquivo < len(row) else ''
+            chave = (cliente or '', arquivo_origem or '')
+            grupos.setdefault(chave, []).append(row)
+
+        arquivos_gerados = []
+        for (cliente, arquivo_origem), rows in grupos.items():
+            base_planilha = os.path.splitext(str(arquivo_origem or 'resultado'))[0]
+            base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
+            base_cliente = sanitizar_nome_arquivo(cliente) or 'cliente'
+            nome_saida = f"{base_cliente}__{base_planilha}__{timestamp}.csv"
+            caminho = os.path.join(pasta_exportacoes, nome_saida)
+
+            with open(caminho, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f, delimiter=';')
+                writer.writerow(header)
+                writer.writerows(rows)
+                f.flush()
+                os.fsync(f.fileno())
+
+            existe = os.path.exists(caminho)
+            tamanho = os.path.getsize(caminho) if existe else -1
+            print(f"DEBUG EXPORT PY: arquivo={caminho} | criado={existe} | tamanho={tamanho}")
+            if existe:
+                arquivos_gerados.append(caminho)
+
+        return arquivos_gerados[0] if len(arquivos_gerados) == 1 else arquivos_gerados
     
     if formato == 'excel':
         arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")  # CSV como fallback
@@ -708,6 +811,9 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None):
             writer = csv.writer(f, delimiter=';')
             writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
             writer.writerows(resultados)
+            f.flush()
+            os.fsync(f.fileno())
+        print(f"DEBUG EXPORT PY: arquivo={arquivo} | criado={os.path.exists(arquivo)} | tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
         return arquivo
     elif formato == 'csv':
         arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")
@@ -715,6 +821,9 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None):
             writer = csv.writer(f, delimiter=';')
             writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
             writer.writerows(resultados)
+            f.flush()
+            os.fsync(f.fileno())
+        print(f"DEBUG EXPORT PY: arquivo={arquivo} | criado={os.path.exists(arquivo)} | tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
         return arquivo
     
     return None
@@ -741,34 +850,40 @@ class SistemaPlanilhas:
     
     def carregar_configuracao_exportacoes(self):
         """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
-        arquivo_config = "config_exportacoes.json"
+        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes.json")
+        pasta_padrao = os.path.join(BASE_DIR, "exportacoes")
+        
         if os.path.exists(arquivo_config):
             try:
                 with open(arquivo_config, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    pasta = config.get('pasta_exportacoes', 'exportacoes')
-                    # Se a pasta configurada existe, retorna ela
-                    if os.path.exists(pasta):
-                        return pasta
-                    # Senao, cria a pasta padrao
-                    if not os.path.exists('exportacoes'):
-                        os.makedirs('exportacoes')
-                    return 'exportacoes'
+                    pasta = config.get('pasta_exportacoes', pasta_padrao)
+                    pasta_norm = os.path.abspath(normalizar_pasta_exportacoes(pasta))
+                    os.makedirs(pasta_norm, exist_ok=True)
+                    print(f"DEBUG CONFIG PY: arquivo_config={arquivo_config}")
+                    print(f"DEBUG CONFIG PY: pasta_raw={pasta}")
+                    print(f"DEBUG CONFIG PY: pasta_norm={pasta_norm}")
+                    
+                    # Corrige automaticamente caminhos antigos quebrados
+                    if pasta != pasta_norm:
+                        self.salvar_configuracao_exportacoes(pasta_norm)
+                    
+                    return pasta_norm
             except Exception as e:
                 print(f"DEBUG: Erro ao carregar configuracao: {e}")
         
-        # Padrao: criar pasta exportacoes local
-        if not os.path.exists('exportacoes'):
-            os.makedirs('exportacoes')
-        return 'exportacoes'
+        os.makedirs(pasta_padrao, exist_ok=True)
+        return pasta_padrao
     
     def salvar_configuracao_exportacoes(self, pasta):
         """Salva a configuracao da pasta exportacoes em um arquivo JSON"""
-        arquivo_config = "config_exportacoes.json"
+        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes.json")
         try:
+            pasta_norm = os.path.abspath(normalizar_pasta_exportacoes(pasta))
             with open(arquivo_config, 'w', encoding='utf-8') as f:
-                json.dump({'pasta_exportacoes': pasta}, f, indent=4)
-            print(f"DEBUG: Configuracao salva: {pasta}")
+                json.dump({'pasta_exportacoes': pasta_norm}, f, indent=4)
+            print(f"DEBUG: Configuracao salva: {pasta_norm}")
+            print(f"DEBUG CONFIG PY: arquivo_config={arquivo_config}")
         except Exception as e:
             print(f"DEBUG: Erro ao salvar configuracao: {e}")
     
@@ -782,10 +897,10 @@ class SistemaPlanilhas:
         )
         
         if pasta_escolhida:
-            # Criar pasta exportacoes dentro do local escolhido
-            pasta_completa = os.path.join(pasta_escolhida, "exportacoes")
-            if not os.path.exists(pasta_completa):
-                os.makedirs(pasta_completa)
+            pasta_completa = os.path.abspath(normalizar_pasta_exportacoes(pasta_escolhida))
+            os.makedirs(pasta_completa, exist_ok=True)
+            print(f"DEBUG CONFIG PY: pasta_escolhida={pasta_escolhida}")
+            print(f"DEBUG CONFIG PY: pasta_final={pasta_completa}")
             
             self.pasta_exportacoes = pasta_completa
             self.salvar_configuracao_exportacoes(pasta_completa)
@@ -1157,10 +1272,18 @@ class SistemaPlanilhas:
             messagebox.showwarning("Aviso", "Não há resultados para exportar!")
             return
         
-        arquivo = exportar_resultados(resultados, 'excel', self.pasta_exportacoes)
+        print(f"DEBUG EXPORT PY UI: inicio exportar_excel | linhas={len(resultados)}")
+        print(f"DEBUG EXPORT PY UI: pasta_configurada={self.pasta_exportacoes}")
+        arquivo = exportar_resultados(resultados, 'excel', self.pasta_exportacoes, colunas=list(self.colunas))
         if arquivo:
-            messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
-            self.status_bar.config(text=f"Exportado para {arquivo}")
+            if isinstance(arquivo, list):
+                messagebox.showinfo("Exportação Concluída", f"Exportados {len(arquivo)} arquivos em:\n{self.pasta_exportacoes}")
+                self.status_bar.config(text=f"Exportados {len(arquivo)} arquivos")
+            else:
+                messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
+                self.status_bar.config(text=f"Exportado para {arquivo}")
+        else:
+            messagebox.showerror("Erro de Exportação", "A exportação não gerou arquivo. Veja os logs DEBUG no terminal.")
     
         
         
@@ -1201,11 +1324,31 @@ class SistemaPlanilhas:
         print(f"DEBUG: Colunas banco: {colunas_banco[:10]}...")
         
         # Se PICTURE tiver valor, usar como nome da imagem
+        caminho_imagem_custom = None
         if picture_valor is not None and picture_valor != '':
             # Converter para string se for número
             picture_str = str(picture_valor).strip()
             if picture_str:
-                nome_imagem = f"{picture_str}.jpg"
+                # Se for URL, abre no navegador e encerra fluxo local
+                if picture_str.lower().startswith(('http://', 'https://')):
+                    try:
+                        import webbrowser
+                        if messagebox.askyesno(
+                            "Imagem por URL",
+                            f"Campo PICTURE contém URL:\n{picture_str}\n\nDeseja abrir no navegador?"
+                        ):
+                            webbrowser.open(picture_str)
+                    except Exception as e:
+                        messagebox.showerror("Erro", f"Não foi possível abrir URL da imagem:\n{str(e)}")
+                    return
+                
+                # Se já vier com extensão/caminho, respeita o valor salvo
+                if picture_str.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')):
+                    nome_imagem = os.path.basename(picture_str)
+                    if os.path.isabs(picture_str) or ('/' in picture_str) or ('\\' in picture_str):
+                        caminho_imagem_custom = picture_str
+                else:
+                    nome_imagem = f"{picture_str}.jpg"
             else:
                 nome_imagem = "default.jpg"
         else:
@@ -1221,7 +1364,7 @@ class SistemaPlanilhas:
             else:
                 nome_imagem = "default.jpg"
         
-        caminho_imagem = os.path.join("imagens", cliente, nome_imagem)
+        caminho_imagem = caminho_imagem_custom or os.path.join("imagens", cliente, nome_imagem)
         
         print(f"DEBUG: Caminho da imagem: {caminho_imagem}")
         print(f"DEBUG: Imagem existe? {os.path.exists(caminho_imagem)}")
@@ -1303,10 +1446,18 @@ class SistemaPlanilhas:
             messagebox.showwarning("Aviso", "Não há resultados para exportar!")
             return
         
-        arquivo = exportar_resultados(resultados, 'csv', self.pasta_exportacoes)
+        print(f"DEBUG EXPORT PY UI: inicio exportar_csv | linhas={len(resultados)}")
+        print(f"DEBUG EXPORT PY UI: pasta_configurada={self.pasta_exportacoes}")
+        arquivo = exportar_resultados(resultados, 'csv', self.pasta_exportacoes, colunas=list(self.colunas))
         if arquivo:
-            messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
-            self.status_bar.config(text=f"Exportado para {arquivo}")
+            if isinstance(arquivo, list):
+                messagebox.showinfo("Exportação Concluída", f"Exportados {len(arquivo)} arquivos em:\n{self.pasta_exportacoes}")
+                self.status_bar.config(text=f"Exportados {len(arquivo)} arquivos")
+            else:
+                messagebox.showinfo("Exportação Concluída", f"Resultados exportados para:\n{arquivo}")
+                self.status_bar.config(text=f"Exportado para {arquivo}")
+        else:
+            messagebox.showerror("Erro de Exportação", "A exportação não gerou arquivo. Veja os logs DEBUG no terminal.")
     
     def atualizar_progresso(self, mensagem):
         """Atualiza a barra de status com mensagens de progresso"""

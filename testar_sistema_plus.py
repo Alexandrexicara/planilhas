@@ -38,7 +38,7 @@ def testar_banco_plus():
         print(f"\n📊 Colunas da tabela produtos_plus: {len(colunas)}")
         
         colunas_esperadas = [
-            'id', 'cliente', 'arquivo_origem', 'codigo', 'descricao', 'peso', 'valor', 
+            'id', 'cliente', 'arquivo_origem', 'picture', 'codigo', 'descricao', 'peso', 'valor', 
             'ncm', 'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount',
             'marca', 'inner_qty', 'master_qty', 'total_ctns', 'gross_weight',
             'net_weight_pc', 'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn',
