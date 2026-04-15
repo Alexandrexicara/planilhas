@@ -1811,6 +1811,7 @@
   ('pkgutil',
    'C:\\Users\\Positivo\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\pkgutil.py',
    'PYMODULE'),
+  ('planilhas_paths', 'E:\\planilhas.com\\planilhas_paths.py', 'PYMODULE'),
   ('platform',
    'C:\\Users\\Positivo\\AppData\\Local\\Programs\\Python\\Python314\\Lib\\platform.py',
    'PYMODULE'),

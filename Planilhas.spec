@@ -1,15 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('banco_plus.db', '.'), ('banco.db', '.'), ('usuarios.db', '.')]
+datas = [('templates', 'templates'), ('static', 'static'), ('banco_plus.db', '.'), ('banco.db', '.'), ('usuarios.db', '.')]
 binaries = []
-hiddenimports = ['sistema', 'sistema_plus', 'usuarios_db', 'gerenciamento_usuarios', 'sistema_online_offline', 'banco_offline', 'openpyxl', 'zipfile', 'sqlite3', 'json', 'datetime', 'tkinter']
+hiddenimports = ['sistema', 'sistema_plus', 'menu_principal', 'usuarios_db', 'gerenciamento_usuarios', 'sistema_online_offline', 'banco_offline']
+tmp_ret = collect_all('flask')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('werkzeug')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('jinja2')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('openpyxl')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
-    ['menu_principal.py'],
+    ['app.py'],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -33,7 +39,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
