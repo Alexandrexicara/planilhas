@@ -2,13 +2,26 @@ import sqlite3
 import hashlib
 import os
 
+from planilhas_paths import ensure_from_resource, is_frozen, log_desktop
+
 # ==============================
 # BANCO DE DADOS DE USUÁRIOS
 # ==============================
 
 def inicializar_banco_usuarios():
     """Cria o banco de dados de usuários se não existir"""
-    conn = sqlite3.connect("usuarios.db")
+    if is_frozen():
+        db_path = ensure_from_resource("usuarios.db")
+    else:
+        # Em dev, manter o DB ao lado do codigo para nao variar por CWD.
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "usuarios.db")
+
+    try:
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    except Exception:
+        pass
+
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
     cursor.execute("""
@@ -103,7 +116,14 @@ def criar_admin_default():
     finally:
         conn.close()
 
-# Inicializar banco e criar admin
+def ensure_inicializado():
+    """Inicializa banco e admin default sem derrubar o exe."""
+    try:
+        inicializar_banco_usuarios()
+        criar_admin_default()
+    except Exception as e:
+        log_desktop(f"[ERRO] Falha ao inicializar usuarios.db: {repr(e)}")
+
+
+# Import necessario para datetime (mantido no fim como estava)
 from datetime import datetime
-inicializar_banco_usuarios()
-criar_admin_default()

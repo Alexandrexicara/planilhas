@@ -5,11 +5,27 @@ from datetime import datetime, timedelta
 import os
 import hashlib
 
+from planilhas_paths import data_path, is_frozen, log_desktop
+
 class SistemaOnlineOffline:
     def __init__(self):
-        self.config_file = "config_sistema.json"
-        self.licenca_file = "licenca.json"
-        self.db_local = "banco_offline.db"
+        if is_frozen():
+            self.config_file = data_path("config_sistema.json")
+            self.licenca_file = data_path("licenca.json")
+            self.db_local = data_path("banco_offline.db")
+            self.device_id_file = data_path("device_id.txt")
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            self.config_file = os.path.join(base_dir, "config_sistema.json")
+            self.licenca_file = os.path.join(base_dir, "licenca.json")
+            self.db_local = os.path.join(base_dir, "banco_offline.db")
+            self.device_id_file = os.path.join(base_dir, "device_id.txt")
+
+        try:
+            os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
+        except Exception as e:
+            log_desktop(f"[AVISO] Nao foi possivel preparar pasta de dados: {repr(e)}")
+
         self.carregar_configuracoes()
         
     def carregar_configuracoes(self):
@@ -425,7 +441,7 @@ class SistemaOnlineOffline:
     
     def get_device_id(self):
         """Gera/obtÃ©m ID Ãºnico do dispositivo"""
-        device_file = "device_id.txt"
+        device_file = getattr(self, "device_id_file", "device_id.txt")
         
         if os.path.exists(device_file):
             with open(device_file, 'r') as f:
@@ -438,6 +454,11 @@ class SistemaOnlineOffline:
             device_info = f"{platform.node()}{platform.system()}{uuid.getnode()}"
             device_id = hashlib.md5(device_info.encode()).hexdigest()
             
+            try:
+                os.makedirs(os.path.dirname(os.path.abspath(device_file)), exist_ok=True)
+            except Exception:
+                pass
+
             with open(device_file, 'w') as f:
                 f.write(device_id)
             

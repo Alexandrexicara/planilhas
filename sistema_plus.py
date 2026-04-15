@@ -12,6 +12,11 @@ from PIL import Image, ImageTk
 # Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+from planilhas_paths import runtime_dir, ensure_from_resource, is_frozen, log_desktop
+
+DATA_DIR = runtime_dir()
+DB_PATH_PLUS = ensure_from_resource("banco_plus.db") if is_frozen() else os.path.join(BASE_DIR, "banco_plus.db")
+
 def sanitizar_nome_arquivo(nome):
     """Gera um nome de arquivo seguro no Windows."""
     import re
@@ -36,7 +41,7 @@ cursor_local_plus = threading.local()
 def get_connection_plus():
     """ObtÃ©m conexÃ£o thread-safe para banco PLUS"""
     if not hasattr(conn_local_plus, 'conn'):
-        conn_local_plus.conn = sqlite3.connect("banco_plus.db")
+        conn_local_plus.conn = sqlite3.connect(DB_PATH_PLUS)
         conn_local_plus.conn.execute("PRAGMA journal_mode=DELETE")
         conn_local_plus.conn.execute("PRAGMA synchronous=FULL")
         conn_local_plus.conn.execute("PRAGMA cache_size=25000")
@@ -606,8 +611,8 @@ class SistemaPlanilhasPlus:
     
     def carregar_configuracao_exportacoes_plus(self):
         """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
-        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes_plus.json")
-        pasta_padrao = os.path.join(BASE_DIR, "exportacoes")
+        arquivo_config = os.path.join(DATA_DIR, "config_exportacoes_plus.json")
+        pasta_padrao = os.path.join(DATA_DIR, "exportacoes")
         
         if os.path.exists(arquivo_config):
             try:
@@ -633,7 +638,7 @@ class SistemaPlanilhasPlus:
     
     def salvar_configuracao_exportacoes_plus(self, pasta):
         """Salva a configuracao da pasta exportacoes em um arquivo JSON"""
-        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes_plus.json")
+        arquivo_config = os.path.join(DATA_DIR, "config_exportacoes_plus.json")
         try:
             pasta_norm = os.path.abspath(self.normalizar_pasta_exportacoes_plus(pasta))
             with open(arquivo_config, 'w', encoding='utf-8') as f:
@@ -967,6 +972,8 @@ class SistemaPlanilhasPlus:
             print(f"DEBUG EXPORT PLUS: pasta_configurada={self.pasta_exportacoes}")
             print(f"DEBUG EXPORT PLUS: pasta_destino={pasta_destino}")
             print(f"DEBUG EXPORT PLUS: linhas={len(resultados)}")
+            if is_frozen():
+                log_desktop(f"DEBUG EXPORT PLUS: pasta_destino={pasta_destino} linhas={len(resultados)}")
             
             # Mantem configuracao sempre corrigida
             if pasta_destino != self.pasta_exportacoes:
@@ -992,14 +999,15 @@ class SistemaPlanilhasPlus:
                 base_planilha = os.path.splitext(str(arquivo_origem or 'resultado'))[0]
                 base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
                 base_cliente = sanitizar_nome_arquivo(cliente) or 'cliente'
-                nome_saida_base = f"{base_cliente}__{base_planilha}__{timestamp}.csv"
+                # Nome começa pelo arquivo de origem (planilha) para facilitar identificacao.
+                nome_saida_base = f"{base_planilha}__{base_cliente}__{timestamp}.csv"
                 caminho = os.path.join(pasta_destino, nome_saida_base)
 
                 # Evitar sobrescrever em caso de colisao
                 if os.path.exists(caminho):
                     n = 2
                     while True:
-                        alt = os.path.join(pasta_destino, f"{base_cliente}__{base_planilha}__{timestamp}_{n}.csv")
+                        alt = os.path.join(pasta_destino, f"{base_planilha}__{base_cliente}__{timestamp}_{n}.csv")
                         if not os.path.exists(alt):
                             caminho = alt
                             break
@@ -1016,6 +1024,8 @@ class SistemaPlanilhasPlus:
                     raise FileNotFoundError(f"Arquivo nao foi criado: {caminho}")
 
                 print(f"DEBUG EXPORT PLUS: arquivo={caminho} | criado=True | tamanho={os.path.getsize(caminho)}")
+                if is_frozen():
+                    log_desktop(f"DEBUG EXPORT PLUS: arquivo={caminho} criado=True tamanho={os.path.getsize(caminho)}")
                 arquivos_gerados.append(caminho)
 
             if len(arquivos_gerados) == 1:
@@ -1029,6 +1039,9 @@ class SistemaPlanilhasPlus:
             import traceback
             print(f"DEBUG EXPORT PLUS: ERRO ao exportar: {e}")
             traceback.print_exc()
+            if is_frozen():
+                log_desktop(f"DEBUG EXPORT PLUS: ERRO ao exportar: {repr(e)}")
+                log_desktop(traceback.format_exc())
             messagebox.showerror("Erro de Exportacao", f"Nao foi possivel exportar:\n{str(e)}")
     
     def exportar_csv_plus(self):

@@ -12,6 +12,13 @@ from PIL import Image, ImageTk
 # Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+from planilhas_paths import runtime_dir, ensure_from_resource, is_frozen, log_desktop
+
+# Diretorio gravavel para DB/config/exportacoes no .exe (AppData).
+DATA_DIR = runtime_dir()
+DB_PATH = ensure_from_resource("banco.db") if is_frozen() else os.path.join(BASE_DIR, "banco.db")
+IMAGENS_DIR = os.path.join(DATA_DIR, "imagens")
+
 # ==============================
 # BANCO DE DADOS
 # ==============================
@@ -23,7 +30,7 @@ cursor_local = threading.local()
 def get_connection():
     """Obtém conexão SQLite thread-safe"""
     if not hasattr(conn_local, 'conn'):
-        conn_local.conn = sqlite3.connect("banco.db", check_same_thread=False)
+        conn_local.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         conn_local.conn.execute("PRAGMA journal_mode=DELETE")
         conn_local.conn.execute("PRAGMA synchronous=FULL")
         conn_local.conn.execute("PRAGMA cache_size=5000")
@@ -132,7 +139,7 @@ def extrair_imagens_excel(caminho_arquivo, cliente):
         ws = wb.active
         
         # Criar pasta para o cliente
-        pasta_cliente = os.path.join("imagens", cliente)
+        pasta_cliente = os.path.join(IMAGENS_DIR, cliente)
         if not os.path.exists(pasta_cliente):
             os.makedirs(pasta_cliente)
         
@@ -267,7 +274,7 @@ def buscar_imagens_externas(caminho_arquivo, cliente):
                 
                 if arquivos_imagem:
                     # Criar pasta do cliente se não existir
-                    pasta_cliente = os.path.join("imagens", cliente)
+                    pasta_cliente = os.path.join(IMAGENS_DIR, cliente)
                     if not os.path.exists(pasta_cliente):
                         os.makedirs(pasta_cliente)
                     
@@ -749,13 +756,15 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
     
     # Usar pasta configurada ou pasta padrao
     if pasta_exportacoes is None:
-        pasta_exportacoes = os.path.join(BASE_DIR, "exportacoes")
+        pasta_exportacoes = os.path.join(DATA_DIR, "exportacoes")
     pasta_exportacoes = os.path.abspath(normalizar_pasta_exportacoes(pasta_exportacoes))
     
     print(f"DEBUG EXPORT PY: cwd={os.getcwd()}")
     print(f"DEBUG EXPORT PY: base_dir={BASE_DIR}")
     print(f"DEBUG EXPORT PY: pasta_destino={pasta_exportacoes}")
     print(f"DEBUG EXPORT PY: formato={formato} | linhas={len(resultados)}")
+    if is_frozen():
+        log_desktop(f"DEBUG EXPORT PY: pasta_destino={pasta_exportacoes} formato={formato} linhas={len(resultados)}")
     
     # Criar pasta exportacoes automaticamente
     os.makedirs(pasta_exportacoes, exist_ok=True)
@@ -787,7 +796,8 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
             base_planilha = os.path.splitext(str(arquivo_origem or 'resultado'))[0]
             base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
             base_cliente = sanitizar_nome_arquivo(cliente) or 'cliente'
-            nome_saida = f"{base_cliente}__{base_planilha}__{timestamp}.csv"
+            # Nome começa pelo arquivo de origem, para o cliente identificar facilmente.
+            nome_saida = f"{base_planilha}__{base_cliente}__{timestamp}.csv"
             caminho = os.path.join(pasta_exportacoes, nome_saida)
 
             with open(caminho, 'w', newline='', encoding='utf-8-sig') as f:
@@ -800,6 +810,8 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
             existe = os.path.exists(caminho)
             tamanho = os.path.getsize(caminho) if existe else -1
             print(f"DEBUG EXPORT PY: arquivo={caminho} | criado={existe} | tamanho={tamanho}")
+            if is_frozen():
+                log_desktop(f"DEBUG EXPORT PY: arquivo={caminho} criado={existe} tamanho={tamanho}")
             if existe:
                 arquivos_gerados.append(caminho)
 
@@ -814,6 +826,8 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
             f.flush()
             os.fsync(f.fileno())
         print(f"DEBUG EXPORT PY: arquivo={arquivo} | criado={os.path.exists(arquivo)} | tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
+        if is_frozen():
+            log_desktop(f"DEBUG EXPORT PY: arquivo={arquivo} criado={os.path.exists(arquivo)} tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
         return arquivo
     elif formato == 'csv':
         arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")
@@ -824,6 +838,8 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
             f.flush()
             os.fsync(f.fileno())
         print(f"DEBUG EXPORT PY: arquivo={arquivo} | criado={os.path.exists(arquivo)} | tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
+        if is_frozen():
+            log_desktop(f"DEBUG EXPORT PY: arquivo={arquivo} criado={os.path.exists(arquivo)} tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
         return arquivo
     
     return None
@@ -850,8 +866,8 @@ class SistemaPlanilhas:
     
     def carregar_configuracao_exportacoes(self):
         """Carrega a configuracao da pasta exportacoes de um arquivo JSON"""
-        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes.json")
-        pasta_padrao = os.path.join(BASE_DIR, "exportacoes")
+        arquivo_config = os.path.join(DATA_DIR, "config_exportacoes.json")
+        pasta_padrao = os.path.join(DATA_DIR, "exportacoes")
         
         if os.path.exists(arquivo_config):
             try:
@@ -877,7 +893,7 @@ class SistemaPlanilhas:
     
     def salvar_configuracao_exportacoes(self, pasta):
         """Salva a configuracao da pasta exportacoes em um arquivo JSON"""
-        arquivo_config = os.path.join(BASE_DIR, "config_exportacoes.json")
+        arquivo_config = os.path.join(DATA_DIR, "config_exportacoes.json")
         try:
             pasta_norm = os.path.abspath(normalizar_pasta_exportacoes(pasta))
             with open(arquivo_config, 'w', encoding='utf-8') as f:
@@ -1364,13 +1380,13 @@ class SistemaPlanilhas:
             else:
                 nome_imagem = "default.jpg"
         
-        caminho_imagem = caminho_imagem_custom or os.path.join("imagens", cliente, nome_imagem)
+        caminho_imagem = caminho_imagem_custom or os.path.join(IMAGENS_DIR, cliente, nome_imagem)
         
         print(f"DEBUG: Caminho da imagem: {caminho_imagem}")
         print(f"DEBUG: Imagem existe? {os.path.exists(caminho_imagem)}")
         
         # Criar pasta se não existir
-        pasta_imagens = os.path.join("imagens", cliente)
+        pasta_imagens = os.path.join(IMAGENS_DIR, cliente)
         if not os.path.exists(pasta_imagens):
             os.makedirs(pasta_imagens)
         
@@ -1424,7 +1440,7 @@ class SistemaPlanilhas:
         frame_botoes.pack(pady=10)
         
         tk.Button(frame_botoes, text="📁 Abrir Pasta", 
-                 command=lambda: os.startfile(os.path.join("imagens", cliente)),
+                 command=lambda: os.startfile(os.path.join(IMAGENS_DIR, cliente)),
                  bg='#3498db', fg='white', font=('Arial', 10, 'bold'), 
                  width=15, height=1).pack(side='left', padx=5)
         

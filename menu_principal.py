@@ -5,10 +5,14 @@ import sys
 import os
 from datetime import datetime
 import hashlib
-from usuarios_db import autenticar_usuario, criar_usuario
+import ctypes
+import traceback
+
+from usuarios_db import autenticar_usuario, criar_usuario, ensure_inicializado
 from gerenciamento_usuarios import GerenciamentoUsuarios
 from sistema_online_offline import SistemaOnlineOffline
 from banco_offline import BancoOffline
+from planilhas_paths import log_desktop, user_data_dir
 
 class TelaLogin:
     def __init__(self, callback_sucesso):
@@ -476,5 +480,21 @@ class SistemaComLogin:
         tela_login.executar()
 
 if __name__ == "__main__":
-    app = SistemaComLogin()
-    app.executar()
+    try:
+        log_desktop(f"Startup menu_principal: cwd={os.getcwd()} frozen={bool(getattr(sys, 'frozen', False))}")
+        ensure_inicializado()
+        app = SistemaComLogin()
+        app.executar()
+    except Exception as e:
+        log_desktop(f"[FATAL] Menu principal nao abriu: {repr(e)}")
+        log_desktop(traceback.format_exc())
+        try:
+            log_path = os.path.join(user_data_dir(), "logs", "planilhas_desktop.log")
+            ctypes.windll.user32.MessageBoxW(
+                0,
+                f"Erro ao abrir o Planilhas:\n{e}\n\nLog:\n{log_path}",
+                "Planilhas",
+                0x10,
+            )
+        except Exception:
+            pass

@@ -14,6 +14,9 @@ from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 import json
 from datetime import datetime
+import socket
+
+from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
 
 # Importacao segura dos modulos desktop (podem falhar em ambiente server/headless)
 MODULOS_IMPORTACAO = {}
@@ -38,12 +41,12 @@ sistema_plus = importar_modulo('sistema_plus')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IS_VERCEL = bool(os.environ.get('VERCEL'))
 IS_RENDER = bool(os.environ.get('RENDER'))
-RUNTIME_DIR = os.path.join('/tmp', 'planilhas') if IS_VERCEL else BASE_DIR
+RUNTIME_DIR = os.path.join('/tmp', 'planilhas') if IS_VERCEL else _runtime_dir()
 UPLOAD_DIR = os.path.join(RUNTIME_DIR, 'uploads')
 TEMP_IMAGES_DIR = os.path.join(RUNTIME_DIR, 'temp_images')
 STATIC_UPLOADS_DIR = os.path.join(RUNTIME_DIR, 'static_uploads')
 BUNDLED_DB_PATH = os.path.join(BASE_DIR, 'banco_plus.db')
-DB_PATH = os.path.join(RUNTIME_DIR, 'banco_plus.db') if IS_VERCEL else BUNDLED_DB_PATH
+DB_PATH = os.path.join(RUNTIME_DIR, 'banco_plus.db') if IS_VERCEL else _ensure_from_resource('banco_plus.db')
 
 app = Flask(__name__)
 app.secret_key = 'sistema_plus_2024'
@@ -98,14 +101,41 @@ DESKTOP_POLICY = {
 }
 
 
-def abrir_navegador_em_background(url, atraso_segundos=1.2):
-    """Abre o navegador sem travar o startup do Flask."""
+def get_user_data_dir():
+    """Diretorio gravavel pelo usuario (evita Program Files)."""
+    base = os.environ.get('LOCALAPPDATA') or os.environ.get('APPDATA') or os.path.expanduser('~')
+    return os.path.join(base, 'planilhas.com')
+
+
+def log_desktop(msg):
+    """Log simples para diagnostico quando o exe roda sem console."""
+    try:
+        log_dir = os.path.join(get_user_data_dir(), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, 'planilhas_desktop.log')
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(log_path, 'a', encoding='utf-8') as f:
+            f.write(f"[{ts}] {msg}\n")
+    except Exception:
+        pass
+
+
+def abrir_navegador_quando_pronto(url, host, port, timeout_segundos=12):
+    """Abre o navegador quando a porta estiver aceitando conexoes."""
     def _abrir():
-        time.sleep(atraso_segundos)
+        deadline = time.time() + timeout_segundos
+        while time.time() < deadline:
+            try:
+                with socket.create_connection((host, port), timeout=0.5):
+                    break
+            except Exception:
+                time.sleep(0.25)
+
         try:
             webbrowser.open(url, new=1)
+            log_desktop(f"Navegador aberto: {url}")
         except Exception as e:
-            print(f"[AVISO] Nao foi possivel abrir navegador automaticamente: {e}")
+            log_desktop(f"[AVISO] Nao foi possivel abrir navegador automaticamente: {e}")
 
     threading.Thread(target=_abrir, daemon=True).start()
 
@@ -611,17 +641,49 @@ def executar_app():
     port = int(os.environ.get("PORT", 5000))
     debug_flag = False  # SEMPRE false
     host = '0.0.0.0' if (IS_VERCEL or IS_RENDER) else '127.0.0.1'
-    auto_open_browser = False  # launcher ja abre o navegador
+    running_desktop = (os.name == 'nt') and (not IS_VERCEL) and (not IS_RENDER) and host == '127.0.0.1'
+    running_frozen = bool(getattr(sys, 'frozen', False))
+
+    # No desktop, o executavel nao tem janela. Abrir o navegador evita "nao abriu nada".
+    auto_open_browser = running_desktop
+
+    log_desktop(f"Startup: frozen={running_frozen} cwd={os.getcwd()} base_dir={BASE_DIR} host={host} port={port}")
 
     if auto_open_browser and host == '127.0.0.1':
-        abrir_navegador_em_background(f"http://127.0.0.1:{port}")
+        abrir_navegador_quando_pronto(f"http://127.0.0.1:{port}", host, port)
 
-    app.run(
-        debug=debug_flag,
-        host=host,
-        port=port,
-        use_reloader=False
-    )
+    try:
+        app.run(
+            debug=debug_flag,
+            host=host,
+            port=port,
+            use_reloader=False
+        )
+    except OSError as e:
+        # Se a porta ja estiver em uso, provavelmente ja existe uma instancia rodando.
+        log_desktop(f"[ERRO] app.run falhou: {repr(e)}")
+        addr_in_use = False
+        try:
+            if getattr(e, 'winerror', None) == 10048:
+                addr_in_use = True
+            elif getattr(e, 'errno', None) in (98, 48):
+                addr_in_use = True
+            elif 'address already in use' in str(e).lower():
+                addr_in_use = True
+        except Exception:
+            addr_in_use = False
+
+        if running_desktop and host == '127.0.0.1':
+            try:
+                abrir_navegador_quando_pronto(f"http://127.0.0.1:{port}", host, port, timeout_segundos=2)
+            except Exception:
+                pass
+
+        # Se a porta ja estava ocupada, abrir o navegador e encerrar e' suficiente.
+        if addr_in_use:
+            return
+
+        raise
 
 
 if __name__ == '__main__':

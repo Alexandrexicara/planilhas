@@ -1,10 +1,24 @@
 import sqlite3
 import hashlib
 from datetime import datetime
+import os
+
+from planilhas_paths import data_path, is_frozen
 
 class BancoOffline:
-    def __init__(self, db_file="banco_offline.db"):
+    def __init__(self, db_file=None):
+        if db_file is None:
+            if is_frozen():
+                db_file = data_path("banco_offline.db")
+            else:
+                db_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "banco_offline.db")
+
         self.db_file = db_file
+        try:
+            db_dir = os.path.dirname(os.path.abspath(self.db_file))
+            os.makedirs(db_dir, exist_ok=True)
+        except Exception:
+            pass
         self.inicializar_banco()
     
     def inicializar_banco(self):
