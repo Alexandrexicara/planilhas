@@ -37,7 +37,6 @@
                                 id="emailLogin" 
                                 name="email"
                                 placeholder="seu@email.com"
-                                value="admin@planilhas.com"
                                 required
                             >
                         </div>
@@ -50,10 +49,10 @@
                                 id="senhaLogin" 
                                 name="senha"
                                 placeholder="Digite sua senha"
-                                value="admin123"
                                 required
                             >
                         </div>
+                        <input type="hidden" name="next" value="{{ next|default('') }}">
 
                         <button type="submit" class="btn btn-gradient w-100 btn-lg">
                             <i class="fas fa-sign-in-alt"></i> Entrar
@@ -85,11 +84,12 @@
             <div class="card border-0 shadow-lg">
                 <div class="card-body p-5">
                     <h3 class="card-title mb-4">
-                        <i class="fas fa-user-plus text-success"></i> Criar Nova Conta
+                        <i class="fas fa-user-plus text-success"></i> Criar Conta (Administrador ou Colaborador)
                     </h3>
 
                     <!-- Register Form -->
                     <form id="registroForm">
+                        <input type="hidden" name="next" value="{{ next|default('') }}">
                         <div class="mb-3">
                             <label for="nomeReg" class="form-label">Nome Completo</label>
                             <input 
@@ -115,6 +115,42 @@
                         </div>
 
                         <div class="mb-3">
+                            <label for="codigoConvite" class="form-label">Código de Convite (opcional)</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-lg"
+                                id="codigoConvite"
+                                name="codigo_convite"
+                                placeholder="Se você é colaborador, cole o código aqui"
+                            >
+                            <div class="form-text">
+                                Se você preencher o código, o cadastro entra como colaborador na empresa do convite.
+                            </div>
+                        </div>
+
+                        <div class="mb-3" id="orgNomeWrap">
+                            <label for="orgNome" class="form-label">Nome da Empresa (para Administrador)</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-lg"
+                                id="orgNome"
+                                name="org_nome"
+                                placeholder="Ex.: Minha Empresa LTDA"
+                            >
+                        </div>
+
+                        <div class="mb-3" id="cpfWrap">
+                            <label for="cpfReg" class="form-label">CPF (opcional)</label>
+                            <input
+                                type="text"
+                                class="form-control form-control-lg"
+                                id="cpfReg"
+                                name="cpf"
+                                placeholder="Somente números"
+                            >
+                        </div>
+
+                        <div class="mb-3">
                             <label for="senhaReg" class="form-label">Senha</label>
                             <input 
                                 type="password" 
@@ -132,7 +168,7 @@
                                 type="password" 
                                 class="form-control form-control-lg" 
                                 id="confirmaReg" 
-                                name="confirma_senha"
+                                name="senha2"
                                 placeholder="Confirme sua senha"
                                 required
                             >
@@ -155,11 +191,11 @@
             <!-- Info Section -->
             <div class="alert alert-info mt-4 text-white" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
                 <h6 class="mb-2">
-                    <i class="fas fa-lightbulb"></i> Dados de Acesso de Demonstração
+                    <i class="fas fa-info-circle"></i> Como funciona
                 </h6>
                 <small>
-                    Email: <code>admin@planilhas.com</code><br>
-                    Senha: <code>admin123</code>
+                    Administrador: informe o nome da empresa e finalize o pagamento para liberar o acesso.<br>
+                    Colaborador: peça ao seu administrador um <strong>código de convite</strong>.
                 </small>
             </div>
         </div>
@@ -226,18 +262,9 @@ document.getElementById('registroForm').addEventListener('submit', async functio
         if (data.success) {
             statusDiv.className = 'alert alert-success alert-dismissible fade show';
             statusText.textContent = '✅ ' + data.message;
-            
-            // Limpar formulário
-            document.getElementById('registroForm').reset();
-            
-            // Preencher login com o email
-            document.getElementById('emailLogin').value = formData.get('email');
-            document.getElementById('senhaLogin').value = formData.get('senha');
-            
-            // Alertar para fazer login
             setTimeout(() => {
-                alert('Cadastro realizado! Use suas novas credenciais para fazer login.');
-            }, 500);
+                window.location.href = data.redirect || '/pagamento';
+            }, 1200);
         } else {
             statusDiv.className = 'alert alert-danger alert-dismissible fade show';
             statusText.textContent = '❌ ' + data.message;
@@ -251,6 +278,17 @@ document.getElementById('registroForm').addEventListener('submit', async functio
         statusDiv.style.display = 'block';
     }
 });
+
+// Ajustar campos conforme convite
+function atualizarCamposRegistro() {
+    const codigo = document.getElementById('codigoConvite').value.trim();
+    const isColab = Boolean(codigo);
+    document.getElementById('orgNomeWrap').style.display = isColab ? 'none' : 'block';
+    document.getElementById('cpfWrap').style.display = isColab ? 'none' : 'block';
+    document.getElementById('orgNome').required = !isColab;
+}
+document.getElementById('codigoConvite').addEventListener('input', atualizarCamposRegistro);
+atualizarCamposRegistro();
 
 // Mostrar/ocultar senha
 document.querySelectorAll('[id*="senha"]').forEach(campo => {

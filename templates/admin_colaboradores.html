@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Colaboradores - planilhas.com{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-1"><i class="fas fa-users text-primary"></i> Colaboradores</h3>
+            <div class="text-muted small">Empresa: <strong>{{ org.nome }}</strong></div>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('sistema_dashboard') }}" class="btn btn-outline-primary">Sistema</a>
+            <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary">Sair</a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="fas fa-ticket-alt"></i> Criar convite</h5>
+
+                    <form id="inviteForm">
+                        <div class="mb-3">
+                            <label class="form-label">Função</label>
+                            <select name="role" class="form-select">
+                                <option value="collab">Colaborador</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Email (opcional)</label>
+                            <input name="email" class="form-control" placeholder="Se quiser amarrar o convite a um email">
+                        </div>
+                        <button class="btn btn-primary w-100" type="submit">
+                            <i class="fas fa-plus"></i> Gerar código
+                        </button>
+                    </form>
+
+                    <div class="mt-3">
+                        <div class="alert alert-info mb-0">
+                            Código gerado: <code id="inviteCode">-</code>
+                            <button class="btn btn-sm btn-outline-secondary ms-2" type="button" onclick="copiarCodigo()">Copiar</button>
+                        </div>
+                        <div class="small text-muted mt-2">
+                            O colaborador deve colar esse código no cadastro em <strong>Começar Agora</strong>.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="fas fa-list"></i> Convites recentes</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Função</th>
+                                    <th>Email</th>
+                                    <th>Usado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for inv in invites %}
+                                <tr>
+                                    <td><code>{{ inv.code }}</code></td>
+                                    <td>{{ inv.role }}</td>
+                                    <td class="text-muted">{{ inv.email or "-" }}</td>
+                                    <td>{{ "sim" if inv.used_at else "não" }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% if invites|length == 0 %}
+                                <tr>
+                                    <td colspan="4" class="text-muted">Nenhum convite criado ainda.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title mb-3"><i class="fas fa-user-friends"></i> Usuários da empresa</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Função</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for u in users %}
+                                <tr>
+                                    <td>{{ u.nome }}</td>
+                                    <td class="text-muted">{{ u.email }}</td>
+                                    <td>{{ u.role }}</td>
+                                    <td>{{ "ativo" if u.ativo else "inativo" }}</td>
+                                </tr>
+                                {% endfor %}
+                                {% if users|length == 0 %}
+                                <tr>
+                                    <td colspan="4" class="text-muted">Nenhum usuário encontrado.</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copiarCodigo() {
+    const code = document.getElementById('inviteCode').textContent.trim();
+    if (!code || code === '-') return;
+    navigator.clipboard.writeText(code);
+}
+
+document.getElementById('inviteForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const resp = await fetch('/admin/convites', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!data.success) {
+        alert(data.message || 'Erro ao gerar convite');
+        return;
+    }
+    document.getElementById('inviteCode').textContent = data.code;
+});
+</script>
+{% endblock %}
+

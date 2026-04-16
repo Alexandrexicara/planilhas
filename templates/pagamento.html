@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Pagamento - planilhas.com{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-lg">
+                <div class="card-body p-5">
+                    <h3 class="mb-2">
+                        <i class="fas fa-qrcode text-primary"></i> Finalizar Pagamento
+                    </h3>
+                    <p class="text-muted mb-4">
+                        Empresa: <strong>{{ org.nome }}</strong>
+                    </p>
+
+                    <div class="alert alert-warning">
+                        <strong>Valor:</strong> R$ {{ "%.2f"|format(org.payment_amount) }} (pagamento único)
+                        <div class="small text-muted mt-1">O acesso será liberado assim que o pagamento for compensado.</div>
+                    </div>
+
+                    <div class="row g-4 align-items-center">
+                        <div class="col-md-6 text-center">
+                            <div class="border rounded p-3 bg-white">
+                                {% if qr_data_uri %}
+                                    <img id="qrImg" src="{{ qr_data_uri }}" alt="QR Code PIX" style="max-width: 260px; width: 100%;">
+                                {% else %}
+                                    <div id="qrPlaceholder" style="height:260px; display:flex; align-items:center; justify-content:center; color:#999;">
+                                        <div>
+                                            <i class="fas fa-qrcode fa-4x"></i>
+                                            <div class="mt-2">QR Code ainda não gerado</div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="mt-3 d-grid gap-2">
+                                <button id="btnGerar" class="btn btn-primary" type="button">
+                                    <i class="fas fa-bolt"></i> Gerar PIX
+                                </button>
+                                <button id="btnStatus" class="btn btn-outline-success" type="button">
+                                    <i class="fas fa-sync"></i> Já paguei (verificar)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h6 class="mb-2"><i class="fas fa-key"></i> Chave PIX</h6>
+                            <div class="input-group mb-3">
+                                <input id="pixKey" type="text" class="form-control" value="{{ pix_key }}" readonly>
+                                <button class="btn btn-outline-secondary" type="button" onclick="copiarPix()">
+                                    Copiar
+                                </button>
+                            </div>
+
+                            <h6 class="mb-2"><i class="fas fa-receipt"></i> Status</h6>
+                            <div id="statusBox" class="alert alert-info mb-0">
+                                Status atual: <strong id="statusText">{{ org.payment_status }}</strong>
+                                {% if org.payment_txid %}
+                                    <div class="small text-muted mt-2">TXID: <span id="txidText">{{ org.payment_txid }}</span></div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mt-3">
+                                <a href="{{ url_for('sistema_dashboard') }}" class="btn btn-link px-0">Ir para o sistema</a>
+                                <span class="text-muted">|</span>
+                                <a href="{{ url_for('logout') }}" class="btn btn-link px-0">Sair</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 small text-muted">
+                        Se o pagamento foi feito e o acesso não liberou, clique em <strong>Já paguei (verificar)</strong>.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const nextUrl = {{ (next|default(''))|tojson }};
+
+function copiarPix() {
+    const el = document.getElementById('pixKey');
+    el.select();
+    el.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+}
+
+async function gerarPix() {
+    const formData = new FormData();
+    const resp = await fetch('/api/pagamento/gerar', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!data.success) {
+        alert(data.message || 'Falha ao gerar PIX');
+        return;
+    }
+    if (data.qr_data_uri) {
+        const img = document.getElementById('qrImg') || (() => {
+            const created = document.createElement('img');
+            created.id = 'qrImg';
+            created.alt = 'QR Code PIX';
+            created.style.cssText = 'max-width: 260px; width: 100%;';
+            const ph = document.getElementById('qrPlaceholder');
+            ph.parentNode.replaceChild(created, ph);
+            return created;
+        })();
+        img.src = data.qr_data_uri;
+    }
+    if (data.txid) {
+        const txidEl = document.getElementById('txidText') || (() => {
+            const wrap = document.createElement('div');
+            wrap.className = 'small text-muted mt-2';
+            wrap.innerHTML = 'TXID: <span id="txidText"></span>';
+            document.getElementById('statusBox').appendChild(wrap);
+            return document.getElementById('txidText');
+        })();
+        txidEl.textContent = data.txid;
+    }
+    if (data.pix_key) {
+        document.getElementById('pixKey').value = data.pix_key;
+    }
+    document.getElementById('statusText').textContent = data.status || 'pending';
+}
+
+async function verificarStatus() {
+    const resp = await fetch('/api/pagamento/status');
+    const data = await resp.json();
+    if (!data.success) return;
+    document.getElementById('statusText').textContent = data.status;
+    if (data.status === 'paid') {
+        window.location.href = nextUrl || '/sistema';
+    }
+}
+
+document.getElementById('btnGerar').addEventListener('click', gerarPix);
+document.getElementById('btnStatus').addEventListener('click', verificarStatus);
+
+// Auto-check leve
+setInterval(verificarStatus, 12000);
+</script>
+{% endblock %}
+

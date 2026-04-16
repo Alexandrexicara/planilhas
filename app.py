@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
 import os
 import sys
 import sqlite3
@@ -10,6 +10,7 @@ import importlib
 import threading
 import webbrowser
 import runpy
+from functools import wraps
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
 import json
@@ -17,6 +18,25 @@ from datetime import datetime
 import socket
 
 from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
+
+from web_access_db import (
+    init_db as _init_access_db,
+    ensure_superadmin as _ensure_superadmin,
+    authenticate as _auth_user,
+    get_user as _get_user,
+    get_organization as _get_org,
+    organization_has_access as _org_has_access,
+    create_organization as _create_org,
+    create_user as _create_user,
+    create_invite as _create_invite,
+    redeem_invite as _redeem_invite,
+    list_invites as _list_invites,
+    list_users as _list_users,
+    set_organization_payment_pending as _org_set_pending,
+    set_organization_paid as _org_set_paid,
+)
+
+from pagbank_client import client_from_env as _pagbank_from_env
 
 # Importacao segura dos modulos desktop (podem falhar em ambiente server/headless)
 MODULOS_IMPORTACAO = {}
@@ -49,9 +69,13 @@ BUNDLED_DB_PATH = os.path.join(BASE_DIR, 'banco_plus.db')
 DB_PATH = os.path.join(RUNTIME_DIR, 'banco_plus.db') if IS_VERCEL else _ensure_from_resource('banco_plus.db')
 
 app = Flask(__name__)
-app.secret_key = 'sistema_plus_2024'
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "sistema_plus_2024")
 app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Banco de acesso (login/roles/pagamento) para a interface web
+_init_access_db()
+_ensure_superadmin(os.environ.get("PLANILHAS_CREATOR_EMAIL"), os.environ.get("PLANILHAS_CREATOR_PASSWORD"))
 
 # Pastas de runtime (serverless so pode escrever em /tmp)
 for runtime_path in [RUNTIME_DIR, UPLOAD_DIR, TEMP_IMAGES_DIR, STATIC_UPLOADS_DIR]:
@@ -144,6 +168,368 @@ def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _current_user():
+    return getattr(g, "current_user", None)
+
+
+def _is_superadmin(user):
+    return bool(user) and user.get("role") == "superadmin"
+
+
+def _login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = _current_user()
+        if not user:
+            nxt = request.full_path if request.query_string else request.path
+            return redirect(url_for("comecar", next=nxt))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def _paid_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user = _current_user()
+        if not user:
+            nxt = request.full_path if request.query_string else request.path
+            return redirect(url_for("comecar", next=nxt))
+        if _is_superadmin(user):
+            return view(*args, **kwargs)
+        org_id = user.get("organization_id")
+        if org_id and _org_has_access(org_id):
+            return view(*args, **kwargs)
+        nxt = request.full_path if request.query_string else request.path
+        return redirect(url_for("pagamento", next=nxt))
+
+    return wrapped
+
+
+def _role_required(*roles):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            user = _current_user()
+            if not user:
+                nxt = request.full_path if request.query_string else request.path
+                return redirect(url_for("comecar", next=nxt))
+            if _is_superadmin(user) or user.get("role") in roles:
+                return view(*args, **kwargs)
+            return ("Acesso negado", 403)
+
+        return wrapped
+
+    return decorator
+
+
+@app.before_request
+def _load_current_user():
+    g.current_user = None
+    user_id = session.get("user_id")
+    if user_id:
+        user = _get_user(user_id)
+        if user and int(user.get("ativo", 1)) == 1:
+            g.current_user = user
+
+
+def _build_system_status():
+    dados_sistema = {
+        "status": "sucesso",
+        "mensagem": "Sistema pronto.",
+        "timestamp": datetime.now().isoformat(),
+        "modulos_carregados": [],
+        "build_info": BUILD_INFO,
+        "distribuicao_desktop": get_desktop_distribution_info(),
+    }
+
+    try:
+        if sistema is not None:
+            dados_sistema["modulos_carregados"].append("[OK] sistema.py carregado")
+        else:
+            erro = ERROS_IMPORTACAO.get("sistema", "modulo nao carregado")
+            dados_sistema["modulos_carregados"].append(f"[ERRO] sistema.py: {erro[:80]}")
+    except Exception as e:
+        dados_sistema["modulos_carregados"].append(f"[ERRO] sistema.py: {str(e)[:50]}")
+
+    try:
+        if sistema_plus is not None and hasattr(sistema_plus, "contar_produtos_plus"):
+            dados_sistema["total_produtos"] = sistema_plus.contar_produtos_plus()
+        if sistema_plus is not None and hasattr(sistema_plus, "contar_planilhas_plus"):
+            dados_sistema["total_planilhas"] = sistema_plus.contar_planilhas_plus()
+
+        if sistema_plus is not None:
+            dados_sistema["modulos_carregados"].append("[OK] sistema_plus.py carregado")
+        else:
+            erro = ERROS_IMPORTACAO.get("sistema_plus", "modulo nao carregado")
+            dados_sistema["modulos_carregados"].append(f"[ERRO] sistema_plus.py: {erro[:80]}")
+    except Exception as e:
+        dados_sistema["modulos_carregados"].append(f"[ERRO] sistema_plus.py: {str(e)[:50]}")
+
+    return dados_sistema
+
+
+@app.route("/comecar")
+def comecar():
+    """Tela de login/cadastro."""
+    nxt = request.args.get("next")
+    if nxt:
+        session["next"] = nxt
+    return render_template("login.html", config=SISTEMA_CONFIG, next=nxt or "")
+
+
+@app.route("/logout")
+def logout():
+    session.pop("user_id", None)
+    return redirect(url_for("index"))
+
+
+@app.route("/login", methods=["POST"])
+def login():
+    email = (request.form.get("email") or "").strip()
+    senha = request.form.get("senha") or ""
+    nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
+
+    user = _auth_user(email, senha)
+    if not user:
+        return jsonify({"success": False, "message": "Email ou senha inválidos"})
+
+    session["user_id"] = user["id"]
+
+    if _is_superadmin(user):
+        return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
+
+    org_id = user.get("organization_id")
+    if not org_id:
+        return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
+
+    if _org_has_access(org_id):
+        return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
+
+    return jsonify({"success": True, "message": "Login realizado. Pagamento pendente.", "redirect": url_for("pagamento")})
+
+
+@app.route("/registro", methods=["POST"])
+def registro():
+    nome = (request.form.get("nome") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    senha = request.form.get("senha") or ""
+    senha2 = request.form.get("senha2") or request.form.get("confirmar_senha") or ""
+    codigo_convite = (request.form.get("codigo_convite") or "").strip()
+    org_nome = (request.form.get("org_nome") or "").strip()
+    cpf = (request.form.get("cpf") or "").strip()
+    nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
+
+    if not nome or not email or not senha:
+        return jsonify({"success": False, "message": "Preencha nome, email e senha"})
+    if senha2 and senha2 != senha:
+        return jsonify({"success": False, "message": "As senhas não conferem"})
+
+    try:
+        if codigo_convite:
+            ok, msg, user_id = _redeem_invite(codigo_convite, nome, email, senha)
+            if not ok:
+                return jsonify({"success": False, "message": msg})
+            session["user_id"] = user_id
+            return jsonify({"success": True, "message": msg, "redirect": nxt or url_for("sistema_dashboard")})
+
+        if not org_nome:
+            return jsonify({"success": False, "message": "Informe o nome da empresa (ou use um código de convite)"})
+
+        org_id = _create_org(org_nome, payment_amount=SISTEMA_CONFIG.get("valor_promocional", 4500.00))
+        user_id = _create_user(org_id, nome, email, senha, role="owner")
+        session["user_id"] = user_id
+
+        # Tentar gerar cobrança Pix automaticamente (se PagBank estiver configurado)
+        try:
+            pagbank = _pagbank_from_env()
+            pix_key = os.environ.get("PAGBANK_PIX_KEY") or os.environ.get("PAGBANK_RECEIVER_PIX_KEY") or ""
+            if pagbank.is_configured() and pix_key:
+                charge = pagbank.create_pix_charge(
+                    amount=SISTEMA_CONFIG.get("valor_promocional", 4500.00),
+                    pix_key=pix_key,
+                    payer_name=nome,
+                    payer_cpf=cpf or "12345678909",
+                    description=f"planilhas.com - Licença vitalícia ({org_nome})",
+                )
+                if charge.get("txid"):
+                    _org_set_pending(org_id, charge.get("txid"), charge.get("qr_code_base64"), charge.get("pix_key"))
+        except Exception:
+            pass
+
+        return jsonify(
+            {"success": True, "message": "Cadastro realizado. Finalize o pagamento para liberar o acesso.", "redirect": url_for("pagamento")}
+        )
+    except sqlite3.IntegrityError:
+        return jsonify({"success": False, "message": "Este email já está cadastrado"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Erro ao registrar: {str(e)}"})
+
+
+@app.route("/pagamento")
+@_login_required
+def pagamento():
+    user = _current_user()
+    if _is_superadmin(user):
+        return redirect(url_for("sistema_dashboard"))
+
+    org = _get_org(user.get("organization_id"))
+    if not org:
+        return ("Organização não encontrada", 400)
+
+    if org.get("payment_status") == "paid":
+        return redirect(url_for("sistema_dashboard"))
+
+    qr_data_uri = None
+    if org.get("payment_qr_base64"):
+        qr_data_uri = f"data:image/png;base64,{org['payment_qr_base64']}"
+
+    return render_template(
+        "pagamento.html",
+        config=SISTEMA_CONFIG,
+        org=org,
+        qr_data_uri=qr_data_uri,
+        pix_key=org.get("payment_pix_key") or (os.environ.get("PAGBANK_PIX_KEY") or ""),
+        next=request.args.get("next", ""),
+    )
+
+
+@app.route("/api/pagamento/gerar", methods=["POST"])
+@_login_required
+@_role_required("owner", "admin")
+def api_pagamento_gerar():
+    user = _current_user()
+    org = _get_org(user.get("organization_id"))
+    if not org:
+        return jsonify({"success": False, "message": "Organização não encontrada"}), 400
+
+    if org.get("payment_status") == "paid":
+        return jsonify({"success": True, "message": "Pagamento já liberado", "status": "paid"})
+
+    pagbank = _pagbank_from_env()
+    pix_key = os.environ.get("PAGBANK_PIX_KEY") or os.environ.get("PAGBANK_RECEIVER_PIX_KEY") or ""
+    if not pagbank.is_configured() or not pix_key:
+        return jsonify({"success": False, "message": "PagBank não configurado no servidor"}), 400
+
+    try:
+        charge = pagbank.create_pix_charge(
+            amount=org.get("payment_amount") or SISTEMA_CONFIG.get("valor_promocional", 4500.00),
+            pix_key=pix_key,
+            payer_name=user.get("nome"),
+            payer_cpf="12345678909",
+            description=f"planilhas.com - Licença vitalícia ({org.get('nome')})",
+        )
+        if not charge.get("txid"):
+            return jsonify({"success": False, "message": "Não foi possível gerar a cobrança"}), 400
+        _org_set_pending(org["id"], charge.get("txid"), charge.get("qr_code_base64"), charge.get("pix_key"))
+        return jsonify(
+            {
+                "success": True,
+                "message": "Cobrança PIX gerada",
+                "txid": charge.get("txid"),
+                "qr_data_uri": f"data:image/png;base64,{charge.get('qr_code_base64')}" if charge.get("qr_code_base64") else None,
+                "pix_key": charge.get("pix_key"),
+                "status": "pending",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Erro ao gerar cobrança: {str(e)}"}), 400
+
+
+@app.route("/api/pagamento/status")
+@_login_required
+def api_pagamento_status():
+    user = _current_user()
+    if _is_superadmin(user):
+        return jsonify({"success": True, "status": "paid"})
+
+    org = _get_org(user.get("organization_id"))
+    if not org:
+        return jsonify({"success": False, "message": "Organização não encontrada"}), 400
+
+    if org.get("payment_status") == "paid":
+        return jsonify({"success": True, "status": "paid"})
+
+    txid = org.get("payment_txid")
+    if not txid:
+        return jsonify({"success": True, "status": org.get("payment_status") or "unpaid"})
+
+    pagbank = _pagbank_from_env()
+    if not pagbank.is_configured():
+        return jsonify({"success": True, "status": org.get("payment_status") or "pending"})
+
+    try:
+        status = pagbank.get_charge_status(txid)
+        if status == "CONCLUIDA":
+            _org_set_paid(org["id"])
+            return jsonify({"success": True, "status": "paid"})
+        if status == "ATIVA":
+            return jsonify({"success": True, "status": "pending"})
+        return jsonify({"success": True, "status": "pending", "pagbank_status": status})
+    except Exception:
+        return jsonify({"success": True, "status": org.get("payment_status") or "pending"})
+
+
+@app.route("/webhook/pagbank", methods=["POST"])
+def webhook_pagbank():
+    """Webhook simples (placeholder) para marcar pagamento como concluído."""
+    try:
+        payload = request.get_json(silent=True) or {}
+        txid = (payload.get("txid") or payload.get("id") or "").strip()
+        status = (payload.get("status") or "").upper().strip()
+        if not txid:
+            return ("ok", 200)
+        if status and status != "CONCLUIDA":
+            return ("ok", 200)
+
+        # Marcar organização como paga pelo txid
+        conn = sqlite3.connect(_ensure_from_resource("acesso_web.db"))
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM organizations WHERE payment_txid = ?", (txid,))
+            row = cur.fetchone()
+            if row:
+                _org_set_paid(row[0])
+        finally:
+            conn.close()
+    except Exception:
+        pass
+    return ("ok", 200)
+
+
+@app.route("/admin/colaboradores")
+@_login_required
+@_paid_required
+@_role_required("owner", "admin")
+def admin_colaboradores():
+    user = _current_user()
+    org = _get_org(user.get("organization_id"))
+    return render_template(
+        "admin_colaboradores.html",
+        config=SISTEMA_CONFIG,
+        org=org,
+        invites=_list_invites(org["id"]) if org else [],
+        users=_list_users(org["id"]) if org else [],
+    )
+
+
+@app.route("/admin/convites", methods=["POST"])
+@_login_required
+@_paid_required
+@_role_required("owner", "admin")
+def admin_criar_convite():
+    user = _current_user()
+    org_id = user.get("organization_id")
+    if not org_id:
+        return jsonify({"success": False, "message": "Organização não encontrada"}), 400
+    role = (request.form.get("role") or "collab").strip().lower()
+    email = (request.form.get("email") or "").strip()
+    if role not in ("admin", "collab"):
+        role = "collab"
+    code = _create_invite(org_id, role=role, email=email or None)
+    return jsonify({"success": True, "code": code})
 
 
 def get_latest_desktop_exe():
@@ -385,7 +771,21 @@ def index():
     return render_template('index.html', config=SISTEMA_CONFIG)
 
 
+@app.route("/sistema")
+@_login_required
+@_paid_required
+def sistema_dashboard():
+    """Dashboard web (sem abrir janelas desktop)."""
+    try:
+        dados_sistema = _build_system_status()
+        return render_template("sistema.html", config=SISTEMA_CONFIG, resultado=dados_sistema)
+    except Exception as e:
+        return render_template("iniciando.html", erro=str(e))
+
+
 @app.route('/download-exe', methods=['POST'])
+@_login_required
+@_paid_required
 def download_exe():
     """Baixa o executavel desktop mais recente publicado em releases/."""
     exe = get_latest_desktop_exe()
@@ -415,41 +815,12 @@ def download_exe_get():
     )
 
 @app.route('/executar-sistema-legado')
+@_login_required
+@_paid_required
 def executar_sistema_legado():
     """Executa funcoes dos modulos dentro do mesmo processo Flask."""
     try:
-        dados_sistema = {
-            'status': 'sucesso',
-            'mensagem': 'Sistema iniciado com sucesso!',
-            'timestamp': datetime.now().isoformat(),
-            'modulos_carregados': [],
-            'distribuicao_desktop': get_desktop_distribution_info()
-        }
-
-        # Modulo sistema
-        try:
-            if sistema is not None:
-                dados_sistema['modulos_carregados'].append('[OK] sistema.py carregado')
-            else:
-                erro = ERROS_IMPORTACAO.get('sistema', 'modulo nao carregado')
-                dados_sistema['modulos_carregados'].append(f'[ERRO] sistema.py: {erro[:80]}')
-        except Exception as e:
-            dados_sistema['modulos_carregados'].append(f'[ERRO] sistema.py: {str(e)[:50]}')
-
-        # Modulo sistema_plus
-        try:
-            if sistema_plus is not None and hasattr(sistema_plus, 'contar_produtos_plus'):
-                dados_sistema['total_produtos'] = sistema_plus.contar_produtos_plus()
-            if sistema_plus is not None and hasattr(sistema_plus, 'contar_planilhas_plus'):
-                dados_sistema['total_planilhas'] = sistema_plus.contar_planilhas_plus()
-
-            if sistema_plus is not None:
-                dados_sistema['modulos_carregados'].append('[OK] sistema_plus.py carregado')
-            else:
-                erro = ERROS_IMPORTACAO.get('sistema_plus', 'modulo nao carregado')
-                dados_sistema['modulos_carregados'].append(f'[ERRO] sistema_plus.py: {erro[:80]}')
-        except Exception as e:
-            dados_sistema['modulos_carregados'].append(f'[ERRO] sistema_plus.py: {str(e)[:50]}')
+        dados_sistema = _build_system_status()
 
         return render_template(
             'sistema.html',
@@ -461,9 +832,16 @@ def executar_sistema_legado():
 
 
 @app.route('/executar-sistema')
+@_login_required
+@_paid_required
 def executar_sistema():
     """Abre as janelas do sistema original e/ou PLUS a partir do Flask."""
     try:
+        # Se alguem ainda estiver usando o link antigo "/executar-sistema" sem target,
+        # envie para a tela de login/cadastro (fluxo correto de onboarding).
+        if not request.args.get("target"):
+            return redirect(url_for("comecar"))
+
         alvo = request.args.get('target', 'both').lower()
         scripts_por_alvo = {
             'original': [('sistema.py', 'Sistema Original')],
@@ -552,11 +930,15 @@ def executar_sistema():
 
 
 @app.route('/upload')
+@_login_required
+@_paid_required
 def upload_page():
     """Pagina de upload"""
     return render_template('upload.html', config=SISTEMA_CONFIG)
 
 @app.route('/api/upload', methods=['POST'])
+@_login_required
+@_paid_required
 def upload_excel():
     """API para upload e processamento de Excel"""
     try:
@@ -596,6 +978,8 @@ def upload_excel():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/catalog')
+@_login_required
+@_paid_required
 def catalog():
     """Catalogo de produtos"""
     conn = get_db_connection()

@@ -668,7 +668,11 @@
 
         function iniciarSistema() {
             // ✅ AGORA USA FLASK (app.py) - NÃO tenta abrir programa externo
-            window.location.href = '/executar-sistema';
+            if (window.location && window.location.protocol === 'file:') {
+                window.location.href = 'http://127.0.0.1:5000/comecar';
+                return;
+            }
+            window.location.href = '/comecar';
         }
 
         function toggleMobileMenu() {

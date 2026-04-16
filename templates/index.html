@@ -25,7 +25,7 @@
                         <div class="original-price">De R$ {{ "%.2f"|format(config.valor_original) }}</div>
                         <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
                         <p class="mb-4">Pagamento único, acesso vitalício</p>
-                        <a href="/executar-sistema" class="btn btn-light btn-lg px-5">
+                        <a href="{{ url_for('comecar') }}" class="btn btn-light btn-lg px-5">
                             <i class="fas fa-play"></i> Começar Agora
                         </a>
                         <small class="d-block mt-3">
@@ -235,13 +235,13 @@
                     Pronto para transformar sua gestão de produtos?
                 </h2>
                 <p class="lead mb-4">
-                    Comece agora mesmo e tenha acesso imediato a todos os recursos
+                    Faça login e conclua o pagamento para liberar o acesso ao sistema
                 </p>
                 <div class="d-flex justify-content-center gap-3">
-                    <a href="/executar-sistema" class="btn btn-gradient btn-lg">
+                    <a href="{{ url_for('comecar', next=url_for('sistema_dashboard')) }}" class="btn btn-gradient btn-lg">
                         <i class="fas fa-play"></i> Começar Agora
                     </a>
-                    <a href="{{ url_for('catalog') }}" class="btn btn-outline-primary btn-lg">
+                    <a href="{{ url_for('comecar', next=url_for('catalog')) }}" class="btn btn-outline-primary btn-lg">
                         <i class="fas fa-plus-circle"></i> Novos Produtos
                     </a>
                 </div>

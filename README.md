@@ -81,6 +81,23 @@ pyinstaller --onefile --windowed --name="SistemaPlanilhas" sistema.py
 
 O executável será gerado em `dist/SistemaPlanilhas.exe`
 
+## 🌐 Web (Login + Pagamento + Colaboradores)
+
+O servidor web é o `app.py` (Flask) e usa variáveis de ambiente para configurar:
+
+- `FLASK_SECRET_KEY`
+- `PLANILHAS_CREATOR_EMAIL` / `PLANILHAS_CREATOR_PASSWORD` (criador com acesso livre)
+- `PAGBANK_ENV`, `PAGBANK_CLIENT_ID`, `PAGBANK_CLIENT_SECRET`, `PAGBANK_PIX_KEY`
+
+Exemplo de arquivo: `.env.example` (não coloque credenciais reais no repositório).
+
+### Rotas principais
+
+- `GET /comecar` (login/cadastro)
+- `GET /pagamento` (liberação por pagamento)
+- `GET /sistema` (dashboard)
+- `GET /admin/colaboradores` (convites para colaboradores)
+
 ## 📊 Performance
 
 - ✅ **100+ planilhas**: Importação em < 30 segundos
