@@ -177,6 +177,9 @@ def _current_user():
 def _is_superadmin(user):
     return bool(user) and user.get("role") == "superadmin"
 
+def _is_admin_or_superadmin(user):
+    return bool(user) and user.get("role") in ["superadmin", "admin"]
+
 
 def _login_required(view):
     @wraps(view)
@@ -197,7 +200,7 @@ def _paid_required(view):
         if not user:
             nxt = request.full_path if request.query_string else request.path
             return redirect(url_for("comecar", next=nxt))
-        if _is_superadmin(user):
+        if _is_admin_or_superadmin(user):
             return view(*args, **kwargs)
         org_id = user.get("organization_id")
         if org_id and _org_has_access(org_id):
@@ -216,7 +219,7 @@ def _role_required(*roles):
             if not user:
                 nxt = request.full_path if request.query_string else request.path
                 return redirect(url_for("comecar", next=nxt))
-            if _is_superadmin(user) or user.get("role") in roles:
+            if _is_admin_or_superadmin(user) or user.get("role") in roles:
                 return view(*args, **kwargs)
             return ("Acesso negado", 403)
 
@@ -298,7 +301,7 @@ def login():
 
     session["user_id"] = user["id"]
 
-    if _is_superadmin(user):
+    if _is_admin_or_superadmin(user):
         return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
     org_id = user.get("organization_id")
@@ -372,7 +375,7 @@ def registro():
 @_login_required
 def pagamento():
     user = _current_user()
-    if _is_superadmin(user):
+    if _is_admin_or_superadmin(user):
         return redirect(url_for("sistema_dashboard"))
 
     org = _get_org(user.get("organization_id"))
@@ -442,7 +445,7 @@ def api_pagamento_gerar():
 @_login_required
 def api_pagamento_status():
     user = _current_user()
-    if _is_superadmin(user):
+    if _is_admin_or_superadmin(user):
         return jsonify({"success": True, "status": "paid"})
 
     org = _get_org(user.get("organization_id"))
