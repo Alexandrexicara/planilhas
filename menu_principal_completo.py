@@ -80,7 +80,7 @@ class TelaLoginPrincipal:
         self.senha_entry.pack(fill='x', pady=(0, 15))
         
         # Botão Entrar
-        btn_entrar = ttk.Button(frame_acesso, text="🚀 Entrar Direto", 
+        btn_entrar = ttk.Button(frame_acesso, text="Entrar Direto", 
                               command=self.fazer_login_direto)
         btn_entrar.pack(fill='x')
         

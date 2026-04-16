@@ -16,7 +16,7 @@ PORT = 8000
 SISTEMA_CONFIG = {
     'nome': 'Sistema Plus de Importação',
     'valor_original': 5000.00,
-    'valor_promocional': 4500.00,
+    'valor_promocional': 50.00,
     'desconto': 10,
     'versao': '2.0',
     'recursos': [

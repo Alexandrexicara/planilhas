@@ -67,7 +67,7 @@ class TelaLogin:
         self.senha_entry.insert(0, "admin123")
         
         # Botão Login
-        btn_login = ttk.Button(frame_login, text="🚀 Entrar", 
+        btn_login = ttk.Button(frame_login, text="Entrar", 
                               command=self.fazer_login)
         btn_login.pack(fill='x', pady=(10, 0))
         
@@ -75,7 +75,7 @@ class TelaLogin:
         ttk.Separator(frame_principal, orient='horizontal').pack(fill='x', pady=20)
         
         # Frame de cadastro
-        frame_cadastro = ttk.LabelFrame(frame_principal, text="👤 Cadastrar Novo Usuário", padding="20")
+        frame_cadastro = ttk.LabelFrame(frame_principal, text="Cadastrar Novo Usuário", padding="20")
         frame_cadastro.pack(fill='x')
         
         # Nome
@@ -99,7 +99,7 @@ class TelaLogin:
         self.confirma_senha_entry.pack(fill='x', pady=(0, 15))
         
         # Botão Cadastrar
-        btn_cadastrar = ttk.Button(frame_cadastro, text="✅ Cadastrar Usuário", 
+        btn_cadastrar = ttk.Button(frame_cadastro, text="Cadastrar Usuário", 
                                   command=self.cadastrar_usuario)
         btn_cadastrar.pack(fill='x')
         
@@ -303,18 +303,18 @@ class MenuPrincipal:
         frame_logo = ttk.Frame(frame_header)
         frame_logo.pack()
         
-        titulo = ttk.Label(frame_logo, text="🪶 planilhas.com", 
+        titulo = ttk.Label(frame_logo, text="planilhas.com", 
                           font=("Arial", 20, "bold"))
         titulo.pack()
         
         # Info usuário
         usuario_info = ttk.Label(frame_logo, 
-                                text=f"👤 Logado como: {self.usuario['nome']} ({self.usuario['email']})",
+                                text=f"Logado como: {self.usuario['nome']} ({self.usuario['email']})",
                                 font=("Arial", 10))
         usuario_info.pack(pady=(5, 0))
         
         # Nível de acesso
-        nivel_text = "🔑 Administrador" if self.usuario['nivel_acesso'] == 'admin' else "👤 Usuário"
+        nivel_text = "Administrador" if self.usuario['nivel_acesso'] == 'admin' else "Usuario"
         nivel_label = ttk.Label(frame_logo, text=nivel_text, font=("Arial", 9, "italic"))
         nivel_label.pack()
         
@@ -331,26 +331,26 @@ class MenuPrincipal:
         frame_botoes.pack(fill=tk.BOTH, expand=True)
         
         # Botão Sistema Original
-        btn_sistema = ttk.Button(frame_botoes, text="📊 Sistema Original", 
+        btn_sistema = ttk.Button(frame_botoes, text="Sistema Original", 
                                 command=self.abrir_sistema_original,
                                 width=30)
         btn_sistema.pack(pady=8)
         
         # Botão Sistema Plus
-        btn_sistema_plus = ttk.Button(frame_botoes, text="⭐ Sistema PLUS", 
+        btn_sistema_plus = ttk.Button(frame_botoes, text="Sistema PLUS", 
                                      command=self.abrir_sistema_plus,
                                      width=30)
         btn_sistema_plus.pack(pady=8)
         
         # Botões admin (se for admin)
         if self.usuario['nivel_acesso'] == 'admin':
-            btn_usuarios = ttk.Button(frame_botoes, text="👥 Gerenciar Usuários", 
+            btn_usuarios = ttk.Button(frame_botoes, text="Gerenciar Usuários", 
                                     command=self.gerenciar_usuarios,
                                     width=30)
             btn_usuarios.pack(pady=8)
         
         # Botão de sincronização
-        btn_sincronizar = ttk.Button(frame_botoes, text="🔄 Sincronizar Dados", 
+        btn_sincronizar = ttk.Button(frame_botoes, text="Sincronizar Dados", 
                                    command=self.sincronizar_dados,
                                    width=30)
         btn_sincronizar.pack(pady=8)
@@ -359,7 +359,7 @@ class MenuPrincipal:
         ttk.Separator(frame_botoes, orient='horizontal').pack(fill='x', pady=15)
         
         # Botão Sair
-        btn_sair = ttk.Button(frame_botoes, text="🚪 Sair do Sistema", 
+        btn_sair = ttk.Button(frame_botoes, text="Sair do Sistema", 
                             command=self.sair,
                             width=30)
         btn_sair.pack(pady=8)

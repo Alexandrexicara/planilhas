@@ -37,7 +37,7 @@ def init_db():
             created_at TEXT NOT NULL,
 
             payment_status TEXT NOT NULL DEFAULT 'unpaid', -- unpaid | pending | paid
-            payment_amount REAL NOT NULL DEFAULT 4500.00,
+            payment_amount REAL NOT NULL DEFAULT 50.00,
             payment_txid TEXT,
             payment_qr_base64 TEXT,
             payment_pix_key TEXT,
@@ -92,7 +92,7 @@ def any_organization_exists():
         conn.close()
 
 
-def create_organization(nome, payment_amount=4500.00):
+def create_organization(nome, payment_amount=50.00):
     conn = connect()
     try:
         cur = conn.cursor()

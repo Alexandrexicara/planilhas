@@ -691,38 +691,38 @@ class SistemaPlanilhasPlus:
                 logo_label.image = logo_photo  # Manter referÃªncia
                 logo_label.pack(side='left', padx=(20, 15))
             else:
-                # Fallback para emoji se imagem nÃ£o existir
-                logo_label = tk.Label(frame_logo_titulo, text="ðŸª¶", font=('Arial', 64), bg='#2c3e50', fg='white')
+                # Fallback emoji se imagem nao existir
+                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 48), bg='#2c3e50', fg='orange')
                 logo_label.pack(side='left', padx=(20, 15))
         except Exception as e:
-            # Fallback para emoji em caso de erro
-            logo_label = tk.Label(frame_logo_titulo, text="ðŸª¶", font=('Arial', 64), bg='#2c3e50', fg='white')
+            # Fallback emoji em caso de erro
+            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 48), bg='#2c3e50', fg='orange')
             logo_label.pack(side='left', padx=(20, 15))
         
         # TÃ­tulo ao lado do logo
-        titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com PLUS", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
+        titulo_label = tk.Label(frame_logo_titulo, text="🚀 planilhas.com PLUS", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
         titulo_label.pack(side='left', padx=(0, 20))
         
-        # Frame de navegaÃ§Ã£o no canto direito
+        # Frame de navegação no canto direito
         frame_navegacao = tk.Frame(frame_logo_titulo, bg='#2c3e50')
         frame_navegacao.pack(side='right', padx=(20, 0))
         
-        # BotÃ£o para voltar ao Sistema Original
-        btn_voltar_original = tk.Button(frame_navegacao, text="ðŸ“Š Sistema Original", 
+        # Botão para voltar ao Sistema Original
+        btn_voltar_original = tk.Button(frame_navegacao, text="📊 Sistema Original", 
                                        command=self.voltar_sistema_original,
                                        bg='#3498db', fg='white', font=('Arial', 10, 'bold'),
                                        relief='raised', bd=2, cursor='hand2')
         btn_voltar_original.pack(pady=2)
         
-        # EstatÃ­sticas em linha separada (linha inferior)
+        # Estatísticas em linha separada (linha inferior)
         frame_stats_container = tk.Frame(frame_stats_plus, bg='#2c3e50')
         frame_stats_container.pack(fill='x', pady=(5, 15))
         
         self.label_stats_plus = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', font=('Arial', 12, 'bold'))
         self.label_stats_plus.pack()
         
-        # Frame de controles avanÃ§ados
-        frame_controles = tk.LabelFrame(self.janela, text="âš¡ Controles AvanÃ§ados", 
+        # Frame de controles avançados
+        frame_controles = tk.LabelFrame(self.janela, text="⚙️ Controles Avançados", 
                                       font=('Arial', 14, 'bold'), bg='#34495e')
         frame_controles.pack(fill='x', padx=10, pady=5)
         
@@ -730,27 +730,27 @@ class SistemaPlanilhasPlus:
         frame_busca = tk.Frame(frame_controles, bg='#34495e')
         frame_busca.pack(fill='x', padx=10, pady=10)
         
-        tk.Label(frame_busca, text="ðŸ” Busca:", font=('Arial', 12), bg='#34495e', fg='white').pack(side='left', padx=5)
+        tk.Label(frame_busca, text="🔍 Busca:", font=('Arial', 12), bg='#34495e', fg='white').pack(side='left', padx=5)
         self.campo_busca = tk.Entry(frame_busca, textvariable=self.termo_busca, font=('Arial', 12), width=50)
         self.campo_busca.pack(side='left', padx=5)
         
-        tk.Button(frame_busca, text="ðŸ”Ž Buscar", command=self.executar_busca_plus,
+        tk.Button(frame_busca, text="🔎 Buscar", command=self.executar_busca_plus,
                  bg='#3498db', fg='white', font=('Arial', 12, 'bold')).pack(side='left', padx=5)
         
-        tk.Button(frame_busca, text="ðŸ—‘ï¸ Limpar", command=self.limpar_busca_plus,
+        tk.Button(frame_busca, text="🧹 Limpar", command=self.limpar_busca_plus,
                  bg='#e74c3c', fg='white', font=('Arial', 12), width=12, height=1).pack(side='left', padx=5)
         
-        # Linha 2 - ImportaÃ§Ã£o
+        # Linha 2 - Importação
         frame_import = tk.Frame(frame_controles, bg='#34495e')
         frame_import.pack(fill='x', padx=10, pady=5)
         
-        tk.Button(frame_import, text="ðŸ“ Importar Pasta", command=self.importar_pasta_plus,
+        tk.Button(frame_import, text="📁 Importar Pasta", command=self.importar_pasta_plus,
                  bg='#27ae60', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
         
-        tk.Button(frame_import, text="ðŸ“„ Selecionar Arquivos", command=self.selecionar_arquivos_plus,
+        tk.Button(frame_import, text="📂 Selecionar Arquivos", command=self.selecionar_arquivos_plus,
                  bg='#f39c12', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
         
-        tk.Button(frame_import, text="âš™ï¸ Otimizar Banco", command=self.otimizar_banco_interface,
+        tk.Button(frame_import, text="⚡ Otimizar Banco", command=self.otimizar_banco_interface,
                  bg='#9b59b6', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
         
         # Filtros
@@ -767,23 +767,23 @@ class SistemaPlanilhasPlus:
         self.combo_planilhas_plus['values'] = ["Todas"]
         
         # Frame de resultados
-        frame_resultados = tk.LabelFrame(self.janela, text="ðŸ“Š Resultados (Capacidade MÃ¡xima)", 
+        frame_resultados = tk.LabelFrame(self.janela, text="📋 Resultados (Capacidade Máxima)", 
                                        font=('Arial', 14, 'bold'), bg='#34495e')
         frame_resultados.pack(fill='both', expand=True, padx=10, pady=5)
         
-        # Barra de exportaÃ§Ã£o
+        # Barra de exportação
         frame_export = tk.Frame(frame_resultados, bg='#34495e')
         frame_export.pack(fill='x', padx=5, pady=5)
         
-        tk.Button(frame_export, text="ðŸ“Š Exportar Excel", command=self.exportar_excel_plus,
+        tk.Button(frame_export, text="📊 Exportar Excel", command=self.exportar_excel_plus,
                  bg='#8e44ad', fg='white', font=('Arial', 12), width=20, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="ï¿½ Pasta ExportaÃ§Ãµes", command=self.escolher_pasta_exportacoes_plus,
+        tk.Button(frame_export, text="🗂️ Pasta Exportações", command=self.escolher_pasta_exportacoes_plus,
                  bg='#3498db', fg='white', font=('Arial', 12), width=20, height=1,
                  relief='raised', bd=2, cursor='hand2').pack(side='left', padx=5)
         
-        tk.Button(frame_export, text="ï¿½ EstatÃ­sticas", command=self.mostrar_estatisticas_detalhadas,
+        tk.Button(frame_export, text="📈 Estatísticas", command=self.mostrar_estatisticas_detalhadas,
                  bg='#2ecc71', fg='white', font=('Arial', 12)).pack(side='left', padx=5)
         
         self.label_resultados_plus = tk.Label(frame_export, text="0 resultados", bg='#34495e', 

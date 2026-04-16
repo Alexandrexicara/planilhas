@@ -95,7 +95,7 @@ if IS_VERCEL and os.path.exists(BUNDLED_DB_PATH) and not os.path.exists(DB_PATH)
 SISTEMA_CONFIG = {
     'nome': 'planilhas.com',
     'valor_original': 5000.00,
-    'valor_promocional': 4500.00,
+    'valor_promocional': 50.00,
     'desconto': 10,
     'versao': '2.0',
     'recursos': [
@@ -338,7 +338,7 @@ def registro():
         if not org_nome:
             return jsonify({"success": False, "message": "Informe o nome da empresa (ou use um código de convite)"})
 
-        org_id = _create_org(org_nome, payment_amount=SISTEMA_CONFIG.get("valor_promocional", 4500.00))
+        org_id = _create_org(org_nome, payment_amount=SISTEMA_CONFIG.get("valor_promocional", 50.00))
         user_id = _create_user(org_id, nome, email, senha, role="owner")
         session["user_id"] = user_id
 
@@ -348,7 +348,7 @@ def registro():
             pix_key = os.environ.get("PAGBANK_PIX_KEY") or os.environ.get("PAGBANK_RECEIVER_PIX_KEY") or ""
             if pagbank.is_configured() and pix_key:
                 charge = pagbank.create_pix_charge(
-                    amount=SISTEMA_CONFIG.get("valor_promocional", 4500.00),
+                    amount=SISTEMA_CONFIG.get("valor_promocional", 50.00),
                     pix_key=pix_key,
                     payer_name=nome,
                     payer_cpf=cpf or "12345678909",
@@ -415,7 +415,7 @@ def api_pagamento_gerar():
 
     try:
         charge = pagbank.create_pix_charge(
-            amount=org.get("payment_amount") or SISTEMA_CONFIG.get("valor_promocional", 4500.00),
+            amount=org.get("payment_amount") or SISTEMA_CONFIG.get("valor_promocional", 50.00),
             pix_key=pix_key,
             payer_name=user.get("nome"),
             payer_cpf="12345678909",
@@ -978,8 +978,6 @@ def upload_excel():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/catalog')
-@_login_required
-@_paid_required
 def catalog():
     """Catalogo de produtos"""
     conn = get_db_connection()
