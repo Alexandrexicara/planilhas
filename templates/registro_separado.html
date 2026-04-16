@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Login - planilhas.com{% endblock %}
+{% block title %}Registro - planilhas.com{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -14,11 +14,11 @@
                 <p class="text-white-50">Sistema Completo de Gestão</p>
             </div>
 
-            <!-- Login Card -->
+            <!-- Registro Card -->
             <div class="card border-0 shadow-lg">
                 <div class="card-body p-5">
                     <h3 class="card-title mb-4">
-                        <i class="fas fa-lock text-primary"></i> Entrar no Sistema
+                        <i class="fas fa-user-plus text-success"></i> Criar Conta (Administrador ou Colaborador)
                     </h3>
 
                     <!-- Status Message -->
@@ -26,66 +26,6 @@
                         <span id="statusText"></span>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-
-                    <!-- Login Form -->
-                    <form id="loginForm">
-                        <div class="mb-3">
-                            <label for="emailLogin" class="form-label">Email</label>
-                            <input 
-                                type="email" 
-                                class="form-control form-control-lg" 
-                                id="emailLogin" 
-                                name="email"
-                                placeholder="seu@email.com"
-                                required
-                            >
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="senhaLogin" class="form-label">Senha</label>
-                            <input 
-                                type="password" 
-                                class="form-control form-control-lg" 
-                                id="senhaLogin" 
-                                name="senha"
-                                placeholder="Digite sua senha"
-                                required
-                            >
-                        </div>
-                        <input type="hidden" name="next" value="{{ next|default('') }}">
-
-                        <button type="submit" class="btn btn-gradient w-100 btn-lg">
-                            <i class="fas fa-sign-in-alt"></i> Entrar
-                        </button>
-                    </form>
-
-                    <div class="text-center mt-3">
-                        <small class="text-muted">Ou continue com:</small>
-                        <div class="mt-2">
-                            <button class="btn btn-outline-secondary btn-sm me-2">
-                                <i class="fab fa-google"></i> Google
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm">
-                                <i class="fab fa-github"></i> GitHub
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Separator -->
-            <div class="text-center my-4">
-                <div class="text-white-50">
-                    <small>Não tem uma conta?</small>
-                </div>
-            </div>
-
-            <!-- Registro Card -->
-            <div class="card border-0 shadow-lg">
-                <div class="card-body p-5">
-                    <h3 class="card-title mb-4">
-                        <i class="fas fa-user-plus text-success"></i> Criar Conta (Administrador ou Colaborador)
-                    </h3>
 
                     <!-- Register Form -->
                     <form id="registroForm">
@@ -179,11 +119,13 @@
                         </button>
                     </form>
 
-                    <div class="mt-3">
-                        <small class="text-muted">
-                            <i class="fas fa-info-circle"></i> 
-                            Ao registrar, você concorda com nossos Termos de Serviço
-                        </small>
+                    <div class="text-center mt-4">
+                        <p class="mb-0">
+                            <small class="text-muted">Já tem uma conta?</small>
+                        </p>
+                        <a href="/comecar" class="btn btn-outline-primary btn-sm mt-2">
+                            <i class="fas fa-sign-in-alt"></i> Fazer Login
+                        </a>
                     </div>
                 </div>
             </div>
@@ -206,59 +148,67 @@
 
 {% block scripts %}
 <script>
-// Aguardar carregamento completo da página
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Página carregada, iniciando scripts...');
-    
-    // Login Form
-    const loginForm = document.getElementById('loginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            
-            try {
-                const response = await fetch('/login', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                const statusDiv = document.getElementById('statusMessage');
-                const statusText = document.getElementById('statusText');
-                
-                if (statusDiv && statusText) {
-                    if (data.success) {
-                        statusDiv.className = 'alert alert-success alert-dismissible fade show';
-                        statusText.textContent = '✅ ' + data.message;
-                        
-                        setTimeout(() => {
-                            window.location.href = data.redirect;
+console.log('=== REGISTRO PAGE SCRIPT ===');
 
-// Login simples
-document.getElementById('loginForm').onsubmit = async function(e) {
-    e.preventDefault();
-    
-    var formData = new FormData(this);
-    
-    try {
-        var response = await fetch('/login', {
-            method: 'POST',
-            body: formData
-        const toggle = document.createElement('small');
-        toggle.style.cssText = 'position: absolute; right: 10px; top: 38px; cursor: pointer; color: #999;';
-        toggle.innerHTML = '<i class="fas fa-eye"></i>';
-        toggle.title = 'Mostrar/Ocultar';
+// Registro Form
+var registroForm = document.getElementById('registroForm');
+if (registroForm) {
+    registroForm.onsubmit = async function(e) {
+        e.preventDefault();
         
-        toggle.addEventListener('click', function() {
-            const type = campo.type === 'password' ? 'text' : 'password';
-            campo.type = type;
-            this.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
-        });
+        var formData = new FormData(this);
         
-        wrapper.appendChild(toggle);
-    });
-});
+        try {
+            var response = await fetch('/registro', {
+                method: 'POST',
+                body: formData
+            });
+            
+            var data = await response.json();
+            var statusDiv = document.getElementById('statusMessage');
+            var statusText = document.getElementById('statusText');
+            
+            if (statusDiv && statusText) {
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success alert-dismissible fade show';
+                    statusText.textContent = data.message || 'Cadastro realizado!';
+                    setTimeout(function() {
+                        window.location.href = data.redirect || '/pagamento';
+                    }, 1200);
+                } else {
+                    statusDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    statusText.textContent = data.message || 'Erro ao cadastrar';
+                }
+                statusDiv.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Erro:', error);
+            var statusDiv = document.getElementById('statusMessage');
+            var statusText = document.getElementById('statusText');
+            if (statusDiv && statusText) {
+                statusDiv.className = 'alert alert-danger alert-dismissible fade show';
+                statusText.textContent = 'Erro de conexão';
+                statusDiv.style.display = 'block';
+            }
+        }
+    };
+}
+
+// Campos de convite
+var codigo = document.getElementById('codigoConvite');
+var orgNomeWrap = document.getElementById('orgNomeWrap');
+var cpfWrap = document.getElementById('cpfWrap');
+var orgNome = document.getElementById('orgNome');
+
+if (codigo && orgNomeWrap && cpfWrap && orgNome) {
+    codigo.oninput = function() {
+        var isColab = codigo.value.trim().length > 0;
+        orgNomeWrap.style.display = isColab ? 'none' : 'block';
+        cpfWrap.style.display = isColab ? 'none' : 'block';
+        orgNome.required = !isColab;
+    };
+}
+
+console.log('=== REGISTRO SCRIPT CARREGADO ===');
 </script>
 {% endblock %}

@@ -276,11 +276,20 @@ def _build_system_status():
 
 @app.route("/comecar")
 def comecar():
-    """Tela de login/cadastro."""
+    """Tela de login."""
     nxt = request.args.get("next")
     if nxt:
         session["next"] = nxt
-    return render_template("login.html", config=SISTEMA_CONFIG, next=nxt or "")
+    return render_template("login_separado.html", config=SISTEMA_CONFIG, next=nxt or "")
+
+
+@app.route("/cadastro")
+def cadastro():
+    """Tela de registro."""
+    nxt = request.args.get("next")
+    if nxt:
+        session["next"] = nxt
+    return render_template("registro_separado.html", config=SISTEMA_CONFIG, next=nxt or "")
 
 
 @app.route("/logout")

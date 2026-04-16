@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Login - planilhas.com{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <!-- Logo -->
+            <div class="text-center mb-5">
+                <h1 class="text-white mb-2">
+                    <i class="fas fa-feather"></i> planilhas.com
+                </h1>
+                <p class="text-white-50">Sistema Completo de Gestão</p>
+            </div>
+
+            <!-- Login Card -->
+            <div class="card border-0 shadow-lg">
+                <div class="card-body p-5">
+                    <h3 class="card-title mb-4">
+                        <i class="fas fa-lock text-primary"></i> Entrar no Sistema
+                    </h3>
+
+                    <!-- Status Message -->
+                    <div id="statusMessage" class="alert alert-dismissible fade" role="alert" style="display: none;">
+                        <span id="statusText"></span>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+
+                    <!-- Login Form -->
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="emailLogin" class="form-label">Email</label>
+                            <input 
+                                type="email" 
+                                class="form-control form-control-lg" 
+                                id="emailLogin" 
+                                name="email"
+                                placeholder="seu@email.com"
+                                required
+                            >
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="senhaLogin" class="form-label">Senha</label>
+                            <input 
+                                type="password" 
+                                class="form-control form-control-lg" 
+                                id="senhaLogin" 
+                                name="senha"
+                                placeholder="Digite sua senha"
+                                required
+                            >
+                        </div>
+                        <input type="hidden" name="next" value="{{ next|default('') }}">
+
+                        <button type="submit" class="btn btn-gradient w-100 btn-lg">
+                            <i class="fas fa-sign-in-alt"></i> Entrar
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-4">
+                        <p class="mb-0">
+                            <small class="text-muted">Não tem uma conta?</small>
+                        </p>
+                        <a href="/cadastro" class="btn btn-outline-success btn-sm mt-2">
+                            <i class="fas fa-user-plus"></i> Criar Conta
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+console.log('=== LOGIN PAGE SCRIPT ===');
+
+// Login Form
+var loginForm = document.getElementById('loginForm');
+if (loginForm) {
+    loginForm.onsubmit = async function(e) {
+        e.preventDefault();
+        
+        var formData = new FormData(this);
+        
+        try {
+            var response = await fetch('/login', {
+                method: 'POST',
+                body: formData
+            });
+            
+            var data = await response.json();
+            var statusDiv = document.getElementById('statusMessage');
+            var statusText = document.getElementById('statusText');
+            
+            if (statusDiv && statusText) {
+                if (data.success) {
+                    statusDiv.className = 'alert alert-success alert-dismissible fade show';
+                    statusText.textContent = 'Login realizado com sucesso!';
+                    setTimeout(function() {
+                        window.location.href = data.redirect;
+                    }, 1500);
+                } else {
+                    statusDiv.className = 'alert alert-danger alert-dismissible fade show';
+                    statusText.textContent = data.message || 'Erro ao fazer login';
+                }
+                statusDiv.style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Erro:', error);
+            var statusDiv = document.getElementById('statusMessage');
+            var statusText = document.getElementById('statusText');
+            if (statusDiv && statusText) {
+                statusDiv.className = 'alert alert-danger alert-dismissible fade show';
+                statusText.textContent = 'Erro de conexão';
+                statusDiv.style.display = 'block';
+            }
+        }
+    };
+}
+
+console.log('=== LOGIN SCRIPT CARREGADO ===');
+</script>
+{% endblock %}
