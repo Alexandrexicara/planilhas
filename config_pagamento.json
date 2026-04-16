@@ -3,7 +3,8 @@
         "client_id": "16a9aa69-d7e4-42c7-9688-ed95ac1e47cf",
         "client_secret": "5b77fe6e4bb0b273825a39cf3919dc700987-52dd-45fa-9d9c-29137dd10a7c",
         "ambiente": "sandbox",
-        "email_contato": "santossilvac992@gmail.com"
+        "email_contato": "santossilvac992@gmail.com",
+        "chave_pix": "santossilvac990@gmail.com"
     },
     "empresa": {
         "nome": "planilhas.com",
@@ -11,22 +12,35 @@
         "telefone": "(00) 00000-0000"
     },
     "planos": {
+        "sistema_plus": {
+            "valor": 4500.00,
+            "valor_promocional": 4500.00,
+            "valor_original": 5000.00,
+            "desconto": 10,
+            "dias_validade": 99999,
+            "descricao": "Sistema Plus - Acesso vitalício (Pagamento único)",
+            "tipo": "vitalicio",
+            "ativo": true
+        },
         "mensal": {
             "valor": 97.00,
             "dias_validade": 30,
             "descricao": "Acesso mensal ao sistema",
+            "tipo": "assinatura",
             "ativo": true
         },
         "trimestral": {
             "valor": 267.00,
             "dias_validade": 90,
             "descricao": "Acesso trimestral com 10% de desconto",
+            "tipo": "assinatura",
             "ativo": true
         },
         "anual": {
             "valor": 897.00,
             "dias_validade": 365,
             "descricao": "Acesso anual com 30% de desconto",
+            "tipo": "assinatura",
             "ativo": true
         }
     },
