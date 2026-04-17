@@ -16,11 +16,51 @@ def _utcnow_str():
 
 
 def get_db_path():
+    # No Render, usar diretório temporário
+    if os.environ.get('RENDER'):
+        db_dir = os.path.join('/tmp', 'planilhas')
+        os.makedirs(db_dir, exist_ok=True)
+        return os.path.join(db_dir, DB_FILENAME)
+    
     return ensure_from_resource(DB_FILENAME)
 
 
 def connect():
-    conn = sqlite3.connect(get_db_path())
+    # Garantir que o banco existe no Render
+    db_path = get_db_path()
+    if os.environ.get('RENDER') and not os.path.exists(db_path):
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        conn = sqlite3.connect(db_path)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                senha TEXT NOT NULL,
+                nome TEXT,
+                role TEXT DEFAULT 'user',
+                ativo INTEGER DEFAULT 1,
+                organization_id INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS organizations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT NOT NULL,
+                email TEXT NOT NULL,
+                payment_status TEXT DEFAULT 'pending',
+                payment_amount REAL,
+                payment_txid TEXT,
+                payment_qr_code TEXT,
+                payment_pix_key TEXT,
+                payment_updated_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        conn.close()
+    
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
