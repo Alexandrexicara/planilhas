@@ -276,9 +276,8 @@ def upload_excel():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/catalog')
-@_login_required
 def catalog():
-    """Catálogo de produtos do banco PLUS"""
+    """Catálogo de produtos do banco PLUS - Acesso Livre"""
     conn = get_db_connection()
     products = conn.execute("""
         SELECT * FROM produtos_plus 

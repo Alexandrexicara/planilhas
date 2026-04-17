@@ -118,10 +118,25 @@
     </style>
 </head>
 <body>
+    <!-- Verificar se usuário está logado -->
+    <script>
+        // Verificar autenticação no lado do cliente
+        fetch('/api/user/check')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.authenticated) {
+                    window.location.href = '/comecar';
+                }
+            })
+            .catch(() => {
+                window.location.href = '/comecar';
+            });
+    </script>
+    
     <div class="container-sistema">
         <!-- Header -->
         <div class="header-sistema">
-            <h1>🚀 Sistema Plus</h1>
+            <h1> Sistema Plus</h1>
             <p>Sistema Executado com Sucesso - Flask</p>
         </div>
 

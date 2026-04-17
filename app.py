@@ -358,15 +358,21 @@ def registro():
         try:
             pagbank = _pagbank_from_env()
             pix_key = os.environ.get("PAGBANK_PIX_KEY") or os.environ.get("PAGBANK_RECEIVER_PIX_KEY") or ""
-            if pagbank.is_configured() and pix_key:
-                charge = pagbank.create_pix_charge(
+            if pagbank.is_configured():
+                # Tenta criar checkout completo primeiro
+                charge = pagbank.create_checkout_charge(
                     amount=SISTEMA_CONFIG.get("valor_promocional", 50.00),
-                    pix_key=pix_key,
                     payer_name=nome,
+                    payer_email=email,
                     payer_cpf=cpf or "12345678909",
                     description=f"planilhas.com - Licença vitalícia ({org_nome})",
+                    redirect_url=url_for("pagamento", _external=True),
+                    webhook_url=url_for("webhook_pagbank", _external=True),
                 )
-                if charge.get("txid"):
+                
+                if charge.get("charge_id"):
+                    _org_set_pending(org_id, charge.get("charge_id"), charge.get("qr_code_base64"), charge.get("pix_key"))
+                elif charge.get("txid"):
                     _org_set_pending(org_id, charge.get("txid"), charge.get("qr_code_base64"), charge.get("pix_key"))
         except Exception:
             pass
@@ -426,29 +432,90 @@ def api_pagamento_gerar():
         return jsonify({"success": False, "message": "PagBank não configurado no servidor"}), 400
 
     try:
-        charge = pagbank.create_pix_charge(
+        charge = pagbank.create_checkout_charge(
             amount=org.get("payment_amount") or SISTEMA_CONFIG.get("valor_promocional", 50.00),
-            pix_key=pix_key,
             payer_name=user.get("nome"),
+            payer_email=user.get("email"),
             payer_cpf="12345678909",
             description=f"planilhas.com - Licença vitalícia ({org.get('nome')})",
+            redirect_url=url_for("pagamento", _external=True),
+            webhook_url=url_for("webhook_pagbank", _external=True),
         )
-        if not charge.get("txid"):
+        
+        if charge.get("charge_id"):
+            _org_set_pending(org["id"], charge.get("charge_id"), charge.get("qr_code_base64"), charge.get("pix_key"))
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Pagamento gerado com sucesso",
+                    "charge_id": charge.get("charge_id"),
+                    "checkout_url": charge.get("checkout_url"),
+                    "payment_urls": charge.get("payment_urls", []),
+                    "links": charge.get("links", []),
+                    "status": charge.get("status", "pending"),
+                }
+            )
+        elif charge.get("txid"):
+            _org_set_pending(org["id"], charge.get("txid"), charge.get("qr_code_base64"), charge.get("pix_key"))
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Cobrança PIX gerada",
+                    "txid": charge.get("txid"),
+                    "qr_data_uri": f"data:image/png;base64,{charge.get('qr_code_base64')}" if charge.get('qr_code_base64') else None,
+                    "pix_key": charge.get("pix_key"),
+                    "status": "pending",
+                }
+            )
+        else:
             return jsonify({"success": False, "message": "Não foi possível gerar a cobrança"}), 400
-        _org_set_pending(org["id"], charge.get("txid"), charge.get("qr_code_base64"), charge.get("pix_key"))
-        return jsonify(
-            {
-                "success": True,
-                "message": "Cobrança PIX gerada",
-                "txid": charge.get("txid"),
-                "qr_data_uri": f"data:image/png;base64,{charge.get('qr_code_base64')}" if charge.get("qr_code_base64") else None,
-                "pix_key": charge.get("pix_key"),
-                "status": "pending",
-            }
-        )
     except Exception as e:
         return jsonify({"success": False, "message": f"Erro ao gerar cobrança: {str(e)}"}), 400
 
+
+@app.route("/webhook/pagbank", methods=["POST"])
+def webhook_pagbank():
+    """Webhook para receber notificações do PagBank"""
+    try:
+        data = request.get_json()
+        if not data:
+            return "OK", 200
+        
+        # Log para debug
+        print(f"Webhook PagBank recebido: {data}")
+        
+        # Verificar se é notificação de pagamento
+        charge_id = data.get("charge_id") or data.get("id")
+        status = data.get("status", "").upper()
+        
+        if charge_id and status in ["PAID", "APPROVED", "COMPLETED"]:
+            # Atualizar status no banco
+            conn = get_db_connection()
+            try:
+                conn.execute(
+                    "UPDATE organizations SET payment_status = 'paid', payment_updated_at = ? WHERE payment_txid = ?",
+                    (_utcnow_str(), charge_id)
+                )
+                conn.commit()
+                print(f"Pagamento confirmado: {charge_id}")
+            finally:
+                conn.close()
+        
+        return "OK", 200
+    except Exception as e:
+        print(f"Erro no webhook PagBank: {e}")
+        return "OK", 200  # Sempre retornar 200 para não reenviar
+
+
+@app.route("/api/user/check")
+def api_user_check():
+    """API para verificar se usuário está autenticado"""
+    user = _current_user()
+    return jsonify({
+        "authenticated": bool(user),
+        "email": user.get("email") if user else None,
+        "role": user.get("role") if user else None
+    })
 
 @app.route("/api/pagamento/status")
 @_login_required
@@ -989,9 +1056,9 @@ def upload_excel():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/catalog')
+@app.route("/catalog")
 def catalog():
-    """Catalogo de produtos"""
+    """Catálogo de produtos do banco PLUS - Acesso Livre"""
     conn = get_db_connection()
     products = conn.execute("""
         SELECT * FROM produtos_plus 
@@ -1000,7 +1067,7 @@ def catalog():
     """).fetchall()
     conn.close()
     
-    return render_template('catalog.html', products=products, config=SISTEMA_CONFIG)
+    return render_template("catalog.html", products=products, config=SISTEMA_CONFIG)
 
 @app.route('/api/stats')
 def get_stats():

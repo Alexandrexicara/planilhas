@@ -1,7 +1,8 @@
 import base64
 import os
-import time
 import requests
+import time
+from datetime import datetime
 
 
 class PagBankClient:
@@ -87,6 +88,97 @@ class PagBankClient:
             "qr_code_base64": qr_base64,
             "pix_key": payload["chave"],
         }
+
+    def create_checkout_charge(
+        self,
+        *,
+        amount,
+        payer_name,
+        payer_email,
+        payer_cpf,
+        description,
+        redirect_url=None,
+        webhook_url=None,
+    ):
+        """Cria pagamento com checkout (cartão, boleto, etc)"""
+        if not self.is_configured():
+            raise RuntimeError("PagBank não configurado (client_id/client_secret ausentes)")
+
+        token = self._get_token()
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+        payload = {
+            "reference_id": f"PLANILHAS_{int(time.time())}",
+            "items": [
+                {
+                    "name": str(description or "").strip()[:100],
+                    "quantity": 1,
+                    "unit_amount": int(float(amount) * 100),  # PagBank usa centavos
+                }
+            ],
+            "customer": {
+                "name": str(payer_name or "").strip(),
+                "email": str(payer_email or "").strip(),
+                "tax_id": str(payer_cpf or "").strip(),
+            },
+            "payment_methods": [
+                {"type": "credit_card"},
+                {"type": "debit_card"},
+                {"type": "boleto"},
+            ],
+            "amount": {
+                "value": int(float(amount) * 100),
+                "currency": "BRL",
+            },
+        }
+
+        # URLs opcionais
+        if redirect_url:
+            payload["redirect_url"] = str(redirect_url)
+        if webhook_url:
+            payload["notification_urls"] = [str(webhook_url)]
+
+        try:
+            resp = requests.post(
+                f"{self._base_url()}/v1/charges",
+                headers=headers,
+                json=payload,
+                timeout=30
+            )
+            resp.raise_for_status()
+            charge_data = resp.json()
+
+            # Extrair URLs de pagamento
+            payment_urls = []
+            links = charge_data.get("links", [])
+            for link in links:
+                if link.get("rel") in ["PAY", "SELF", "CHECKOUT"]:
+                    payment_urls.append({
+                        "method": "checkout",
+                        "url": link.get("href"),
+                        "type": link.get("media", "text/html"),
+                    })
+
+            return {
+                "charge_id": charge_data.get("id"),
+                "reference_id": charge_data.get("reference_id"),
+                "status": charge_data.get("status", "CREATED"),
+                "amount": amount,
+                "payment_urls": payment_urls,
+                "checkout_url": payment_urls[0]["url"] if payment_urls else None,
+                "links": links,
+                "qr_code": None,  # Checkout não usa QR code
+            }
+
+        except Exception as e:
+            # Fallback para PIX se checkout falhar
+            return self.create_pix_charge(
+                amount=amount,
+                pix_key=os.environ.get("PAGBANK_PIX_KEY", ""),
+                payer_name=payer_name,
+                payer_cpf=payer_cpf,
+                description=description,
+            )
 
     def get_charge_status(self, txid):
         if not self.is_configured():
