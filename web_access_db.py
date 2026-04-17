@@ -156,7 +156,7 @@ def create_user(organization_id, nome, email, senha, role="collab", ativo=1):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO users (organization_id, nome, email, password_hash, role, ativo, created_at)
+            INSERT INTO users (organization_id, nome, email, senha, role, ativo, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -188,7 +188,7 @@ def ensure_superadmin(email, senha):
             conn.execute(
                 """
                 UPDATE users
-                SET password_hash = ?, role = 'superadmin', ativo = 1
+                SET senha = ?, role = 'superadmin', ativo = 1
                 WHERE id = ?
                 """,
                 (password_hash, existing["id"]),
@@ -199,7 +199,7 @@ def ensure_superadmin(email, senha):
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO users (organization_id, nome, email, password_hash, role, ativo, created_at)
+            INSERT INTO users (organization_id, nome, email, senha, role, ativo, created_at)
             VALUES (NULL, 'Criador', ?, ?, 'superadmin', 1, ?)
             """,
             (email_norm, password_hash, _utcnow_str()),
@@ -218,7 +218,7 @@ def authenticate(email, senha):
     try:
         row = conn.execute(
             """
-            SELECT id, organization_id, nome, email, password_hash, role, ativo
+            SELECT id, organization_id, nome, email, senha, role, ativo
             FROM users
             WHERE email = ?
             """,
@@ -228,7 +228,7 @@ def authenticate(email, senha):
         if not row or int(row["ativo"]) != 1:
             return None
 
-        if not check_password_hash(row["password_hash"], senha):
+        if not check_password_hash(row["senha"], senha):
             return None
 
         return {
