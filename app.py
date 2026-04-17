@@ -1166,6 +1166,17 @@ def executar_app():
 
 
 if __name__ == '__main__':
-    if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
-        sys.exit(executar_modulo_desktop(sys.argv[2]))
-    executar_app()
+    try:
+        # Inicializar banco de acesso no Render
+        if IS_RENDER:
+            _init_access_db()
+            _ensure_superadmin()
+        
+        if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
+            sys.exit(executar_modulo_desktop(sys.argv[2]))
+        executar_app()
+    except Exception as e:
+        print(f"ERRO FATAL AO INICIAR APLICACAO: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
