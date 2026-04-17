@@ -211,11 +211,17 @@ def ensure_superadmin(email, senha):
 
 
 def authenticate(email, senha):
+    print(f"=== DEBUG AUTHENTICATE ===")
+    print(f"Email: {email}")
+    print(f"Senha: {senha}")
+    
     if not email or not senha:
+        print("Email ou senha vazios")
         return None
 
     conn = connect()
     try:
+        print("Buscando usuário no banco...")
         row = conn.execute(
             """
             SELECT id, organization_id, nome, email, senha, role, ativo
@@ -225,12 +231,22 @@ def authenticate(email, senha):
             (email.strip().lower(),),
         ).fetchone()
 
-        if not row or int(row["ativo"]) != 1:
+        print(f"Usuário encontrado: {row}")
+        
+        if not row:
+            print("Usuário não encontrado")
+            return None
+            
+        if int(row["ativo"]) != 1:
+            print("Usuário inativo")
             return None
 
+        print(f"Verificando senha: {row['senha']} vs {senha}")
         if not check_password_hash(row["senha"], senha):
+            print("Senha incorreta")
             return None
 
+        print("Autenticação bem-sucedida!")
         return {
             "id": row["id"],
             "organization_id": row["organization_id"],
