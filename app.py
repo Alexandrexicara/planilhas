@@ -318,27 +318,44 @@ def logout():
 
 @app.route("/login", methods=["POST"])
 def login():
+    print(f"=== DEBUG ROTA /LOGIN ===")
+    print(f"Form data completo: {dict(request.form)}")
+    print(f"Request method: {request.method}")
+    
     try:
         email = (request.form.get("email") or "").strip()
         senha = request.form.get("senha") or ""
         nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
 
+        print(f"Email extraído: '{email}'")
+        print(f"Senha extraída: '{senha}'")
+        print(f"Next: '{nxt}'")
+
+        print("Chamando _auth_user...")
         user = _auth_user(email, senha)
+        print(f"Resultado _auth_user: {user}")
+        
         if not user:
+            print("Usuário não encontrado ou senha inválida")
             return jsonify({"success": False, "message": "Email ou senha inválidos"})
 
         session["user_id"] = user["id"]
+        print(f"Session user_id definido: {user['id']}")
 
         if _is_admin_or_superadmin(user):
+            print("Usuário é admin/superadmin")
             return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
         org_id = user.get("organization_id")
         if not org_id:
+            print("Usuário sem organização")
             return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
         if _org_has_access(org_id):
+            print("Organização tem acesso")
             return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
+        print("Organização sem acesso - pagamento pendente")
         return jsonify({"success": True, "message": "Login realizado. Pagamento pendente.", "redirect": url_for("pagamento")})
     
     except Exception as e:

@@ -89,7 +89,10 @@ if (loginForm) {
         
         try {
             console.log('=== ENVIANDO LOGIN ===');
-            console.log('FormData:', Array.from(formData.entries()));
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
             
             var response = await fetch('/login', {
                 method: 'POST',
