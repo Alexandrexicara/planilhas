@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 import sys
 import os
 
@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Importar funções do sistema existente
 from sistema_plus import get_connection_plus, get_cursor_plus
 from extrator_imagens_excel import extrair_imagens_completas
+from web_access_db import init_db, get_user_by_email
 import sqlite3
 import zipfile
 import shutil
@@ -45,6 +46,40 @@ def get_db_connection():
     conn = sqlite3.connect('banco_plus.db')
     conn.row_factory = sqlite3.Row
     return conn
+
+# Funções de autenticação
+def _current_user():
+    """Retorna o usuário atual da sessão"""
+    user_id = session.get("user_id")
+    if user_id:
+        return get_user_by_email(user_id)
+    return None
+
+def _is_superadmin(user):
+    """Verifica se o usuário é superadmin"""
+    return bool(user) and user.get("role") == "superadmin"
+
+def _login_required(f):
+    """Decorator para exigir login"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = _current_user()
+        if not user:
+            return redirect(url_for("login_page"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def _superadmin_required(f):
+    """Decorator para exigir superadmin"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user = _current_user()
+        if not _is_superadmin(user):
+            return "Acesso negado - Apenas Superadmin", 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 def extract_images_from_excel(excel_path, output_dir):
     """Extrai imagens do arquivo Excel automaticamente"""
@@ -164,17 +199,44 @@ def import_products_to_db(products_data, filename):
     
     return imported_count
 
+@app.route('/login')
+def login_page():
+    """Página de login para o sistema integration"""
+    return render_template('login_integration.html', config=SISTEMA_CONFIG)
+
+@app.route('/auth/login', methods=['POST'])
+def auth_login():
+    """Autenticação de login"""
+    email = request.form.get("email", "").strip()
+    senha = request.form.get("senha", "")
+    
+    user = get_user_by_email(email)
+    if user and user.get("senha") == senha:  # Em produção, usar hash
+        session["user_id"] = email
+        return jsonify({"success": True, "redirect": url_for("index")})
+    else:
+        return jsonify({"success": False, "message": "Email ou senha incorretos"})
+
+@app.route('/logout')
+def logout():
+    """Logout do sistema"""
+    session.pop("user_id", None)
+    return redirect(url_for("login_page"))
+
 @app.route('/')
+@_login_required
 def index():
     """Página inicial atraente"""
     return render_template('index.html', config=SISTEMA_CONFIG)
 
 @app.route('/upload')
+@_login_required
 def upload_page():
     """Página de upload"""
     return render_template('upload.html', config=SISTEMA_CONFIG)
 
 @app.route('/api/upload', methods=['POST'])
+@_login_required
 def upload_excel():
     """API para upload e processamento de Excel"""
     try:
@@ -214,6 +276,7 @@ def upload_excel():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/catalog')
+@_login_required
 def catalog():
     """Catálogo de produtos do banco PLUS"""
     conn = get_db_connection()
@@ -227,6 +290,7 @@ def catalog():
     return render_template('catalog.html', products=products, config=SISTEMA_CONFIG)
 
 @app.route('/api/stats')
+@_login_required
 def get_stats():
     """API de estatísticas do banco PLUS"""
     conn = get_db_connection()
@@ -244,6 +308,7 @@ def get_stats():
     return jsonify(stats)
 
 @app.route('/sistema')
+@_login_required
 def sistema_info():
     """Informações sobre o sistema Python existente"""
     return render_template('sistema_info.html', config=SISTEMA_CONFIG)
