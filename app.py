@@ -165,6 +165,24 @@ def abrir_navegador_quando_pronto(url, host, port, timeout_segundos=12):
 
 def get_db_connection():
     """Conexao com o banco de dados"""
+    # Garantir que o banco existe no Render
+    if IS_RENDER and not os.path.exists(DB_PATH):
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS produtos_plus (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome TEXT,
+                descricao TEXT,
+                preco REAL,
+                imagem TEXT,
+                cliente TEXT,
+                data_importacao TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+        conn.close()
+    
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
