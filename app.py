@@ -1186,8 +1186,33 @@ if __name__ == '__main__':
     try:
         # Inicializar banco de acesso no Render
         if IS_RENDER:
+            print("=== INICIALIZANDO BANCO NO RENDER ===")
             _init_access_db()
-            _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+            print("Banco inicializado, criando superadmin...")
+            result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+            print(f"Superadmin criado com ID: {result}")
+            
+            # Verificar se banco foi criado
+            from planilhas_paths import get_db_path
+            print(f"Caminho do banco: {get_db_path()}")
+            
+            # Verificar se superadmin existe
+            from web_access_db import authenticate
+            test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+            print(f"Teste de autenticação: {test_user}")
+            
+            # Listar todos os usuários
+            from web_access_db import connect
+            conn = connect()
+            users = conn.execute("SELECT id, email, role FROM users").fetchall()
+            print(f"Usuários no banco: {users}")
+            conn.close()
+            
+            # Verificar estrutura da tabela
+            conn = connect()
+            schema = conn.execute("PRAGMA table_info(users)").fetchall()
+            print(f"Estrutura da tabela users: {schema}")
+            conn.close()
         
         if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
             sys.exit(executar_modulo_desktop(sys.argv[2]))
