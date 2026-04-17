@@ -569,31 +569,6 @@ def api_pagamento_status():
         return jsonify({"success": True, "status": org.get("payment_status") or "pending"})
 
 
-@app.route("/webhook/pagbank", methods=["POST"])
-def webhook_pagbank():
-    """Webhook simples (placeholder) para marcar pagamento como concluído."""
-    try:
-        payload = request.get_json(silent=True) or {}
-        txid = (payload.get("txid") or payload.get("id") or "").strip()
-        status = (payload.get("status") or "").upper().strip()
-        if not txid:
-            return ("ok", 200)
-        if status and status != "CONCLUIDA":
-            return ("ok", 200)
-
-        # Marcar organização como paga pelo txid
-        conn = sqlite3.connect(_ensure_from_resource("acesso_web.db"))
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT id FROM organizations WHERE payment_txid = ?", (txid,))
-            row = cur.fetchone()
-            if row:
-                _org_set_paid(row[0])
-        finally:
-            conn.close()
-    except Exception:
-        pass
-    return ("ok", 200)
 
 
 @app.route("/admin/colaboradores")
