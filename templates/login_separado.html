@@ -88,12 +88,29 @@ if (loginForm) {
         var formData = new FormData(this);
         
         try {
+            console.log('=== ENVIANDO LOGIN ===');
+            console.log('FormData:', Array.from(formData.entries()));
+            
             var response = await fetch('/login', {
                 method: 'POST',
                 body: formData
             });
             
-            var data = await response.json();
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+            
+            var responseText = await response.text();
+            console.log('Response text:', responseText);
+            
+            var data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                console.error('Erro ao parsear JSON:', e);
+                console.log('Resposta bruta:', responseText);
+                throw new Error('Resposta inválida do servidor');
+            }
+            
             var statusDiv = document.getElementById('statusMessage');
             var statusText = document.getElementById('statusText');
             
@@ -111,12 +128,12 @@ if (loginForm) {
                 statusDiv.style.display = 'block';
             }
         } catch (error) {
-            console.error('Erro:', error);
+            console.error('Erro no login:', error);
             var statusDiv = document.getElementById('statusMessage');
             var statusText = document.getElementById('statusText');
             if (statusDiv && statusText) {
                 statusDiv.className = 'alert alert-danger alert-dismissible fade show';
-                statusText.textContent = 'Erro de conexão';
+                statusText.textContent = 'Erro: ' + error.message;
                 statusDiv.style.display = 'block';
             }
         }

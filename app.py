@@ -318,47 +318,60 @@ def logout():
 
 @app.route("/login", methods=["POST"])
 def login():
-    email = (request.form.get("email") or "").strip()
-    senha = request.form.get("senha") or ""
-    nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
+    try:
+        email = (request.form.get("email") or "").strip()
+        senha = request.form.get("senha") or ""
+        nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
 
-    user = _auth_user(email, senha)
-    if not user:
-        return jsonify({"success": False, "message": "Email ou senha inválidos"})
+        user = _auth_user(email, senha)
+        if not user:
+            return jsonify({"success": False, "message": "Email ou senha inválidos"})
 
-    session["user_id"] = user["id"]
+        session["user_id"] = user["id"]
 
-    if _is_admin_or_superadmin(user):
-        return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
+        if _is_admin_or_superadmin(user):
+            return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
-    org_id = user.get("organization_id")
-    if not org_id:
-        return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
+        org_id = user.get("organization_id")
+        if not org_id:
+            return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
-    if _org_has_access(org_id):
-        return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
+        if _org_has_access(org_id):
+            return jsonify({"success": True, "message": "Login realizado", "redirect": nxt or url_for("sistema_dashboard")})
 
-    return jsonify({"success": True, "message": "Login realizado. Pagamento pendente.", "redirect": url_for("pagamento")})
+        return jsonify({"success": True, "message": "Login realizado. Pagamento pendente.", "redirect": url_for("pagamento")})
+    
+    except Exception as e:
+        print(f"ERRO NO LOGIN: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "message": f"Erro no servidor: {str(e)}"}), 500
 
 
 @app.route("/registro", methods=["POST"])
 def registro():
-    nome = (request.form.get("nome") or "").strip()
-    email = (request.form.get("email") or "").strip().lower()
-    senha = request.form.get("senha") or ""
-    senha2 = request.form.get("senha2") or request.form.get("confirmar_senha") or ""
-    codigo_convite = (request.form.get("codigo_convite") or "").strip()
-    org_nome = (request.form.get("org_nome") or "").strip()
-    cpf = (request.form.get("cpf") or "").strip()
-    nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
-
-    if not nome or not email or not senha:
-        return jsonify({"success": False, "message": "Preencha nome, email e senha"})
-    if senha2 and senha2 != senha:
-        return jsonify({"success": False, "message": "As senhas não conferem"})
-
     try:
+        print(f"=== DEBUG REGISTRO ===")
+        print(f"Form data: {dict(request.form)}")
+        
+        nome = (request.form.get("nome") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+        senha = request.form.get("senha") or ""
+        senha2 = request.form.get("senha2") or request.form.get("confirmar_senha") or ""
+        codigo_convite = (request.form.get("codigo_convite") or "").strip()
+        org_nome = (request.form.get("org_nome") or "").strip()
+        cpf = (request.form.get("cpf") or "").strip()
+        nxt = (request.form.get("next") or session.pop("next", "") or "").strip()
+
+        print(f"Dados extraídos: nome={nome}, email={email}, org_nome={org_nome}, senha_len={len(senha)}")
+
+        if not nome or not email or not senha:
+            return jsonify({"success": False, "message": "Preencha nome, email e senha"})
+        if senha2 and senha2 != senha:
+            return jsonify({"success": False, "message": "As senhas não conferem"})
+
         if codigo_convite:
+            print(f"Tentando registrar com convite: {codigo_convite}")
             ok, msg, user_id = _redeem_invite(codigo_convite, nome, email, senha)
             if not ok:
                 return jsonify({"success": False, "message": msg})
@@ -368,9 +381,16 @@ def registro():
         if not org_nome:
             return jsonify({"success": False, "message": "Informe o nome da empresa (ou use um código de convite)"})
 
+        print(f"Criando organização: {org_nome}")
         org_id = _create_org(org_nome, payment_amount=SISTEMA_CONFIG.get("valor_promocional", 50.00))
+        print(f"Organização criada com ID: {org_id}")
+        
+        print(f"Criando usuário: {nome}, {email}")
         user_id = _create_user(org_id, nome, email, senha, role="owner")
+        print(f"Usuário criado com ID: {user_id}")
+        
         session["user_id"] = user_id
+        print(f"Session user_id definido: {user_id}")
 
         # Tentar gerar cobrança Pix automaticamente (se PagBank estiver configurado)
         try:
@@ -395,12 +415,17 @@ def registro():
         except Exception:
             pass
 
+        print(f"Cadastro finalizado com sucesso! Redirecionando para pagamento...")
         return jsonify(
             {"success": True, "message": "Cadastro realizado. Finalize o pagamento para liberar o acesso.", "redirect": url_for("pagamento")}
         )
     except sqlite3.IntegrityError:
+        print(f"ERRO: Email já cadastrado: {email}")
         return jsonify({"success": False, "message": "Este email já está cadastrado"})
     except Exception as e:
+        print(f"ERRO NO REGISTRO: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "message": f"Erro ao registrar: {str(e)}"})
 
 
@@ -1145,7 +1170,7 @@ if __name__ == '__main__':
         # Inicializar banco de acesso no Render
         if IS_RENDER:
             _init_access_db()
-            _ensure_superadmin()
+            _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         
         if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
             sys.exit(executar_modulo_desktop(sys.argv[2]))
