@@ -1,4 +1,22 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
+print("=== APP INICIANDO ===")
+print("Python version:", sys.version)
+print("Working directory:", os.getcwd())
+print("Environment variables:", dict(os.environ))
+
+try:
+    from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
+    print("✅ Flask importado")
+except Exception as e:
+    print("❌ Erro ao importar Flask:", e)
+    raise
+
+try:
+    from werkzeug.security import generate_password_hash, check_password_hash
+    print("✅ Werkzeug importado")
+except Exception as e:
+    print("❌ Erro ao importar Werkzeug:", e)
+    raise
+
 import os
 import sys
 import sqlite3
@@ -17,26 +35,38 @@ import json
 from datetime import datetime
 import socket
 
-from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
+try:
+    from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
+    print("✅ planilhas_paths importado")
+except Exception as e:
+    print("❌ Erro ao importar planilhas_paths:", e)
+    raise
+
+print("=== IMPORTS BÁSICOS OK ===")
 
 # Usar PostgreSQL no Render, SQLite localmente
 if os.environ.get('RENDER'):
-    from web_access_db_postgres import (
-        init_db as _init_access_db,
-        ensure_superadmin as _ensure_superadmin,
-        authenticate as _auth_user,
-        get_user as _get_user,
-        get_organization as _get_org,
-        organization_has_access as _org_has_access,
-        create_organization as _create_org,
-        create_user as _create_user,
-        create_invite as _create_invite,
-        redeem_invite as _redeem_invite,
-        list_invites as _list_invites,
-        list_users as _list_users,
-        set_organization_payment_pending as _org_set_pending,
-        set_organization_paid as _org_set_paid,
-    )
+    try:
+        from web_access_db_postgres import (
+            init_db as _init_access_db,
+            ensure_superadmin as _ensure_superadmin,
+            authenticate as _auth_user,
+            get_user as _get_user,
+            get_organization as _get_org,
+            organization_has_access as _org_has_access,
+            create_organization as _create_org,
+            create_user as _create_user,
+            create_invite as _create_invite,
+            redeem_invite as _redeem_invite,
+            list_invites as _list_invites,
+            list_users as _list_users,
+            set_organization_payment_pending as _org_set_pending,
+            set_organization_paid as _org_set_paid,
+        )
+        print("✅ web_access_db_postgres importado")
+    except Exception as e:
+        print("❌ Erro ao importar web_access_db_postgres:", e)
+        raise
 else:
     from web_access_db import (
         init_db as _init_access_db,
@@ -53,7 +83,16 @@ else:
         list_users as _list_users,
         set_organization_payment_pending as _org_set_pending,
         set_organization_paid as _org_set_paid,
-)
+    )
+
+print("=== IMPORTS DE BANCO OK ===")
+
+# Verificar DATABASE_URL
+DATABASE_URL = os.environ.get('DATABASE_URL')
+print(f"DATABASE_URL encontrado: {DATABASE_URL is not None}")
+
+if not DATABASE_URL:
+    print("⚠️ DATABASE_URL não configurado, usando SQLite fallback")
 
 from pagbank_client import client_from_env as _pagbank_from_env
 
@@ -1344,20 +1383,41 @@ def executar_app():
 
 if __name__ == '__main__':
     try:
+        print("=== INICIALIZANDO APP PRINCIPAL ===")
+        print("IS_RENDER:", IS_RENDER)
+        
         # Inicializar banco de acesso no Render
         if IS_RENDER:
             print("=== INICIALIZANDO BANCO NO RENDER ===")
-            _init_access_db()
-            print("Banco inicializado, garantindo superadmin...")
+            try:
+                _init_access_db()
+                print("✅ Banco inicializado com sucesso")
+            except Exception as e:
+                print(f"❌ ERRO AO INICIAR BANCO: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
             
-            # Garantir superadmin
-            _garantir_superadmin()
+            print("Garantindo superadmin...")
+            try:
+                _garantir_superadmin()
+                print("✅ Superadmin garantido")
+            except Exception as e:
+                print(f"❌ ERRO AO GARANTIR SUPERADMIN: {e}")
+                import traceback
+                traceback.print_exc()
+                raise
         
         if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
             sys.exit(executar_modulo_desktop(sys.argv[2]))
+        
+        print("Iniciando app Flask...")
         executar_app()
     except Exception as e:
-        print(f"ERRO FATAL AO INICIAR APLICACAO: {e}")
+        print(f"❌ ERRO FATAL AO INICIAR APLICACAO: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
         import traceback
         traceback.print_exc()
         sys.exit(1)
