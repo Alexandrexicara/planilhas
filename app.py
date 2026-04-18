@@ -378,11 +378,52 @@ def login():
         print(f"Senha extraída: '{senha}'")
         print(f"Next: '{nxt}'")
 
+        print("=== DEBUG COMPLETO LOGIN ===")
+        print(f"EMAIL RECEBIDO: '{email}'")
+        print(f"SENHA RECEBIDA: '{senha[:3]}***' (len={len(senha)})")
+        
         print("Chamando _auth_user...")
         user = _auth_user(email, senha)
         print(f"Resultado _auth_user: {user}")
+        print(f"Tipo do resultado: {type(user)}")
         
-        if not user:
+        if user is None:
+            print("=== USUÁRIO É NONE ===")
+            print("VERIFICANDO SE USUÁRIO EXISTE NO BANCO...")
+            
+            # Verificar diretamente no banco
+            try:
+                from web_access_db_postgres import connect
+                conn = connect()
+                db_url = os.environ.get('DATABASE_URL')
+                is_postgres = bool(db_url)
+                
+                if is_postgres:
+                    with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                        cur.execute("SELECT id, email, role FROM users WHERE email = %s", (email.strip().lower(),))
+                        row = cur.fetchone()
+                        print(f"POSTGRES - Usuário encontrado: {row}")
+                else:
+                    row = conn.execute("SELECT id, email, role FROM users WHERE email = ?", (email.strip().lower(),)).fetchone()
+                    print(f"SQLITE - Usuário encontrado: {row}")
+                
+                conn.close()
+                
+                # Listar todos os usuários
+                conn2 = connect()
+                if is_postgres:
+                    with conn2.cursor(cursor_factory=RealDictCursor) as cur:
+                        cur.execute("SELECT id, email, role FROM users ORDER BY id")
+                        all_users = cur.fetchall()
+                        print(f"POSTGRES - Todos usuários: {all_users}")
+                else:
+                    all_users = conn2.execute("SELECT id, email, role FROM users ORDER BY id").fetchall()
+                    print(f"SQLITE - Todos usuários: {all_users}")
+                conn2.close()
+                
+            except Exception as e:
+                print(f"ERRO AO VERIFICAR BANCO: {e}")
+            
             print("Usuário não encontrado ou senha inválida")
             return jsonify({"success": False, "message": "Email ou senha inválidos"})
 
