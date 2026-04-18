@@ -159,54 +159,23 @@ if (registroForm) {
         var formData = new FormData(this);
         
         try {
-            console.log('=== ENVIANDO REGISTRO ===');
-            console.log('FormData:', Array.from(formData.entries()));
-            
-            var response = await fetch('/registro', {
-                method: 'POST',
-                body: formData
-            });
-            
-            console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
-            
-            var responseText = await response.text();
-            console.log('Response text:', responseText);
-            
-            var data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (e) {
-                console.error('Erro ao parsear JSON:', e);
-                console.log('Resposta bruta:', responseText);
-                throw new Error('Resposta inválida do servidor');
+            console.log('=== ENVIANDO REGISTRO COM AuthAPI ===');
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
             }
             
-            var statusDiv = document.getElementById('statusMessage');
-            var statusText = document.getElementById('statusText');
+            var data = await AuthAPI.register(formData);
             
-            if (statusDiv && statusText) {
-                if (data.success) {
-                    statusDiv.className = 'alert alert-success alert-dismissible fade show';
-                    statusText.textContent = data.message || 'Cadastro realizado!';
-                    setTimeout(function() {
-                        window.location.href = data.redirect || '/pagamento';
-                    }, 1200);
-                } else {
-                    statusDiv.className = 'alert alert-danger alert-dismissible fade show';
-                    statusText.textContent = data.message || 'Erro ao cadastrar';
-                }
-                statusDiv.style.display = 'block';
+            if (data.success) {
+                Utils.showStatus(data.message || 'Cadastro realizado!', 'success');
+                Utils.redirect(data.redirect || '/pagamento', 1200);
+            } else {
+                Utils.showStatus(data.message || 'Erro ao cadastrar', 'danger');
             }
         } catch (error) {
             console.error('Erro no registro:', error);
-            var statusDiv = document.getElementById('statusMessage');
-            var statusText = document.getElementById('statusText');
-            if (statusDiv && statusText) {
-                statusDiv.className = 'alert alert-danger alert-dismissible fade show';
-                statusText.textContent = 'Erro: ' + error.message;
-                statusDiv.style.display = 'block';
-            }
+            Utils.showStatus('Erro: ' + error.message, 'danger');
         }
     };
 }
