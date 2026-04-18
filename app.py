@@ -343,27 +343,19 @@ def create_superadmin():
     
     try:
         print("=== CRIANDO SUPERADMIN MANUALMENTE ===")
-        from web_access_db import ensure_superadmin, authenticate, connect
         
         # Criar superadmin
-        result = ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         print(f"Superadmin criado com ID: {result}")
         
         # Testar autenticação
-        test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         print(f"Teste de autenticação: {test_user}")
-        
-        # Listar usuários
-        conn = connect()
-        users = conn.execute("SELECT id, email, role FROM users").fetchall()
-        print(f"Usuários no banco: {users}")
-        conn.close()
         
         return f"""
         <h1>Superadmin Criado!</h1>
         <p>ID: {result}</p>
         <p>Teste autenticação: {test_user}</p>
-        <p>Usuários no banco: {users}</p>
         <a href="/comecar">Ir para login</a>
         """
     except Exception as e:
@@ -1182,31 +1174,23 @@ def _garantir_superadmin():
     print("=== GARANTINDO SUPERADMIN ===")
     
     try:
-        from web_access_db import ensure_superadmin, authenticate, connect
-        
         # Verificar se superadmin já existe
-        test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         if test_user:
             print("✅ Superadmin já existe e funciona!")
             return
         
         # Criar superadmin
         print("❌ Superadmin não encontrado, criando...")
-        result = ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         print(f"✅ Superadmin criado com ID: {result}")
         
         # Testar novamente
-        test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         if test_user:
             print("✅ Superadmin criado e autenticado com sucesso!")
         else:
             print("❌ ERRO: Superadmin criado mas não autentica!")
-        
-        # Listar usuários
-        conn = connect()
-        users = conn.execute("SELECT id, email, role FROM users").fetchall()
-        print(f"📋 Usuários no banco: {users}")
-        conn.close()
         
     except Exception as e:
         print(f"❌ ERRO AO GARANTIR SUPERADMIN: {e}")
