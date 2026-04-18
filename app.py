@@ -316,6 +316,42 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/admin/create-superadmin", methods=["GET", "POST"])
+def create_superadmin():
+    """Endpoint para criar superadmin manualmente (debug)"""
+    if request.method == "GET":
+        return render_template("create_superadmin.html")
+    
+    try:
+        print("=== CRIANDO SUPERADMIN MANUALMENTE ===")
+        from web_access_db import ensure_superadmin, authenticate, connect
+        
+        # Criar superadmin
+        result = ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        print(f"Superadmin criado com ID: {result}")
+        
+        # Testar autenticação
+        test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        print(f"Teste de autenticação: {test_user}")
+        
+        # Listar usuários
+        conn = connect()
+        users = conn.execute("SELECT id, email, role FROM users").fetchall()
+        print(f"Usuários no banco: {users}")
+        conn.close()
+        
+        return f"""
+        <h1>Superadmin Criado!</h1>
+        <p>ID: {result}</p>
+        <p>Teste autenticação: {test_user}</p>
+        <p>Usuários no banco: {users}</p>
+        <a href="/comecar">Ir para login</a>
+        """
+    except Exception as e:
+        print(f"ERRO: {e}")
+        return f"ERRO: {e}"
+
+
 @app.route("/login", methods=["POST"])
 def login():
     print(f"=== DEBUG ROTA /LOGIN ===")
