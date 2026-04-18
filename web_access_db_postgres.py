@@ -13,122 +13,208 @@ def get_db_url():
     return os.environ.get('DATABASE_URL')
 
 def connect():
-    """Conecta ao PostgreSQL"""
+    """Conecta ao PostgreSQL ou fallback para SQLite"""
     db_url = get_db_url()
     if not db_url:
-        raise ValueError("DATABASE_URL não configurado no Render")
+        # Fallback para SQLite se DATABASE_URL não existir
+        print("DATABASE_URL não encontrado, usando SQLite fallback")
+        import sqlite3
+        from planilhas_paths import ensure_from_resource
+        db_path = ensure_from_resource("acesso_web.db")
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
     
     conn = psycopg2.connect(db_url)
     conn.autocommit = True
     return conn
 
 def init_db():
-    """Inicializa o banco PostgreSQL"""
+    """Inicializa o banco PostgreSQL ou SQLite"""
     conn = connect()
     try:
-        with conn.cursor() as cur:
-            # Tabela users
-            cur.execute("""
+        db_url = get_db_url()
+        is_postgres = bool(db_url)
+        
+        if is_postgres:
+            # PostgreSQL
+            with conn.cursor() as cur:
+                # Tabela users
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        email VARCHAR(255) UNIQUE NOT NULL,
+                        senha VARCHAR(255) NOT NULL,
+                        nome VARCHAR(255),
+                        role VARCHAR(50) DEFAULT 'user',
+                        ativo INTEGER DEFAULT 1,
+                        organization_id INTEGER,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Tabela organizations
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS organizations (
+                        id SERIAL PRIMARY KEY,
+                        nome VARCHAR(255) NOT NULL,
+                        email VARCHAR(255) NOT NULL,
+                        payment_status VARCHAR(50) DEFAULT 'pending',
+                        payment_amount DECIMAL(10,2),
+                        payment_txid VARCHAR(255),
+                        payment_qr_code TEXT,
+                        payment_pix_key VARCHAR(255),
+                        payment_updated_at TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Tabela invites
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS invites (
+                        id SERIAL PRIMARY KEY,
+                        organization_id INTEGER NOT NULL,
+                        email VARCHAR(255),
+                        role VARCHAR(50) DEFAULT 'collab',
+                        code VARCHAR(255) UNIQUE NOT NULL,
+                        used INTEGER DEFAULT 0,
+                        used_at TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (organization_id) REFERENCES organizations(id)
+                    )
+                """)
+        else:
+            # SQLite fallback
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    email VARCHAR(255) UNIQUE NOT NULL,
-                    senha VARCHAR(255) NOT NULL,
-                    nome VARCHAR(255),
-                    role VARCHAR(50) DEFAULT 'user',
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    senha TEXT NOT NULL,
+                    nome TEXT,
+                    role TEXT DEFAULT 'user',
                     ativo INTEGER DEFAULT 1,
                     organization_id INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Tabela organizations
-            cur.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS organizations (
-                    id SERIAL PRIMARY KEY,
-                    nome VARCHAR(255) NOT NULL,
-                    email VARCHAR(255) NOT NULL,
-                    payment_status VARCHAR(50) DEFAULT 'pending',
-                    payment_amount DECIMAL(10,2),
-                    payment_txid VARCHAR(255),
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    nome TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    payment_status TEXT DEFAULT 'pending',
+                    payment_amount REAL,
+                    payment_txid TEXT,
                     payment_qr_code TEXT,
-                    payment_pix_key VARCHAR(255),
-                    payment_updated_at TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    payment_pix_key TEXT,
+                    payment_updated_at TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Tabela invites
-            cur.execute("""
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS invites (
-                    id SERIAL PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                     organization_id INTEGER NOT NULL,
-                    email VARCHAR(255),
-                    role VARCHAR(50) DEFAULT 'collab',
-                    code VARCHAR(255) UNIQUE NOT NULL,
+                    email TEXT,
+                    role TEXT DEFAULT 'collab',
+                    code TEXT UNIQUE NOT NULL,
                     used INTEGER DEFAULT 0,
-                    used_at TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    used_at TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (organization_id) REFERENCES organizations(id)
                 )
             """)
             
-            print("Banco PostgreSQL inicializado com sucesso!")
+            conn.commit()
+        
+        print(f"Banco {'PostgreSQL' if is_postgres else 'SQLite'} inicializado com sucesso!")
     finally:
         conn.close()
 
 def create_user(organization_id, nome, email, senha, role="collab", ativo=1):
-    """Cria usuário no PostgreSQL"""
+    """Cria usuário no PostgreSQL ou SQLite"""
     conn = connect()
     try:
         password_hash = generate_password_hash(senha)
-        with conn.cursor() as cur:
+        db_url = get_db_url()
+        is_postgres = bool(db_url)
+        
+        if is_postgres:
+            # PostgreSQL
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO users (organization_id, nome, email, senha, role, ativo, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (organization_id, nome.strip(), email.strip().lower(), password_hash, role, int(ativo), datetime.utcnow()))
+                
+                user_id = cur.fetchone()[0]
+        else:
+            # SQLite
+            cur = conn.cursor()
             cur.execute("""
                 INSERT INTO users (organization_id, nome, email, senha, role, ativo, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (organization_id, nome.strip(), email.strip().lower(), password_hash, role, int(ativo), datetime.utcnow()))
             
-            user_id = cur.fetchone()[0]
-            print(f"Usuário criado com ID: {user_id}")
-            return user_id
+            conn.commit()
+            user_id = cur.lastrowid
+        
+        print(f"Usuário criado com ID: {user_id}")
+        return user_id
     finally:
         conn.close()
 
 def authenticate(email, senha):
-    """Autentica usuário no PostgreSQL"""
+    """Autentica usuário no PostgreSQL ou SQLite"""
     if not email or not senha:
         print("Email ou senha vazios")
         return None
 
     conn = connect()
     try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""
+        db_url = get_db_url()
+        is_postgres = bool(db_url)
+        
+        if is_postgres:
+            # PostgreSQL
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, organization_id, nome, email, senha, role, ativo
+                    FROM users
+                    WHERE email = %s
+                """, (email.strip().lower(),))
+                
+                row = cur.fetchone()
+        else:
+            # SQLite
+            row = conn.execute("""
                 SELECT id, organization_id, nome, email, senha, role, ativo
                 FROM users
-                WHERE email = %s
-            """, (email.strip().lower(),))
-            
-            row = cur.fetchone()
-            print(f"Usuário encontrado: {row}")
-            
-            if not row or int(row["ativo"]) != 1:
-                print("Usuário não encontrado ou inativo")
-                return None
+                WHERE email = ?
+            """, (email.strip().lower(),)).fetchone()
+        
+        print(f"Usuário encontrado: {row}")
+        
+        if not row or int(row["ativo"]) != 1:
+            print("Usuário não encontrado ou inativo")
+            return None
 
-            print(f"Verificando senha...")
-            if not check_password_hash(row["senha"], senha):
-                print("Senha incorreta")
-                return None
+        print(f"Verificando senha...")
+        if not check_password_hash(row["senha"], senha):
+            print("Senha incorreta")
+            return None
 
-            print("Autenticação bem-sucedida!")
-            return {
-                "id": row["id"],
-                "organization_id": row["organization_id"],
-                "nome": row["nome"],
-                "email": row["email"],
-                "role": row["role"],
-            }
+        print("Autenticação bem-sucedida!")
+        return {
+            "id": row["id"],
+            "organization_id": row["organization_id"],
+            "nome": row["nome"],
+            "email": row["email"],
+            "role": row["role"],
+        }
     finally:
         conn.close()
 
