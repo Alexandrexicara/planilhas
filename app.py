@@ -335,6 +335,38 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/downloads")
+def downloads():
+    """Página de downloads - Acesso livre"""
+    return render_template("downloads.html")
+
+
+@app.route("/download/<platform>")
+def download_file(platform):
+    """Download de executáveis - Acesso livre"""
+    
+    # Mapeamento de arquivos (simulado para teste)
+    files = {
+        'windows': 'planilhas-plus-windows.exe',
+        'linux': 'planilhas-plus-linux',
+        'macos': 'planilhas-plus-macos.app'
+    }
+    
+    if platform not in files:
+        return "Plataforma não encontrada", 404
+    
+    filename = files[platform]
+    
+    # Para teste, vamos retornar uma mensagem simulando o download
+    # Em produção, você teria os arquivos reais na pasta 'downloads/'
+    return f"""
+    <h1>Download Simulado</h1>
+    <p>Arquivo: {filename}</p>
+    <p>Plataforma: {platform}</p>
+    <p><a href="/downloads">Voltar</a></p>
+    """
+
+
 @app.route("/admin/create-superadmin", methods=["GET", "POST"])
 def create_superadmin():
     """Endpoint para criar superadmin manualmente (debug)"""
