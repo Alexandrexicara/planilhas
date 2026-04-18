@@ -1,3 +1,5 @@
+import sys
+
 print("=== APP INICIANDO ===")
 print("Python version:", sys.version)
 print("Working directory:", os.getcwd())
