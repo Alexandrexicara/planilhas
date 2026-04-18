@@ -245,6 +245,24 @@
                         <i class="fas fa-plus-circle"></i> Novos Produtos
                     </a>
                 </div>
+                
+                <!-- Acesso Direto -->
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6 class="text-primary text-center mb-3">
+                        <i class="fas fa-bolt"></i> Acesso Direto
+                    </h6>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a href="{{ url_for('downloads') }}" class="btn btn-success btn-sm">
+                            <i class="fas fa-download"></i> Downloads
+                        </a>
+                        <a href="#" onclick="executarSistema()" class="btn btn-warning btn-sm">
+                            <i class="fas fa-play-circle"></i> Executar Sistema
+                        </a>
+                    </div>
+                    <p class="small text-muted text-center mb-0 mt-2">
+                        Acesso direto sem necessidade de login ou pagamento
+                    </p>
+                </div>
             </div>
         </div>
     </div>
@@ -253,6 +271,13 @@
 
 {% block scripts %}
 <script>
+// Função para executar sistema diretamente
+function executarSistema() {
+    alert('Executando sistema localmente...');
+    // Em produção, isso abriria o sistema local
+    window.open('file:///C:/sistema/planilhas-plus.html', '_blank');
+}
+
 // Carregar estatísticas
 document.addEventListener('DOMContentLoaded', function() {
     fetch('/api/stats')

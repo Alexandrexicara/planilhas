@@ -367,6 +367,17 @@ def download_file(platform):
     """
 
 
+@app.route("/executar-sistema")
+def executar_sistema():
+    """Executar sistema localmente - Acesso livre"""
+    return """
+    <h1>Executar Sistema</h1>
+    <p>O sistema será executado localmente.</p>
+    <p>Em produção, isso abriria o aplicativo diretamente no seu computador.</p>
+    <p><a href="/" class="btn btn-primary">Voltar</a></p>
+    """
+
+
 @app.route("/admin/create-superadmin", methods=["GET", "POST"])
 def create_superadmin():
     """Endpoint para criar superadmin manualmente (debug)"""
