@@ -18,7 +18,10 @@ window.AuthAPI = {
         try {
             console.log('=== AuthAPI Login ===');
             console.log('Enviando para:', `${API_CONFIG.baseURL}/login`);
-            console.log('FormData:', Array.from(formData.entries()));
+            console.log('FormData entries:');
+            for (let [key, value] of formData.entries()) {
+                console.log(`${key}: ${value}`);
+            }
 
             const response = await fetch(`${API_CONFIG.baseURL}/login`, {
                 method: 'POST',
