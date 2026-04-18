@@ -1,0 +1,342 @@
+"""
+Banco de dados PostgreSQL para acesso web - Versão Render
+Substitui o SQLite volátil por PostgreSQL persistente
+"""
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
+
+def get_db_url():
+    """Obtém URL do PostgreSQL do Render"""
+    return os.environ.get('DATABASE_URL')
+
+def connect():
+    """Conecta ao PostgreSQL"""
+    db_url = get_db_url()
+    if not db_url:
+        raise ValueError("DATABASE_URL não configurado no Render")
+    
+    conn = psycopg2.connect(db_url)
+    conn.autocommit = True
+    return conn
+
+def init_db():
+    """Inicializa o banco PostgreSQL"""
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            # Tabela users
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    email VARCHAR(255) UNIQUE NOT NULL,
+                    senha VARCHAR(255) NOT NULL,
+                    nome VARCHAR(255),
+                    role VARCHAR(50) DEFAULT 'user',
+                    ativo INTEGER DEFAULT 1,
+                    organization_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Tabela organizations
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS organizations (
+                    id SERIAL PRIMARY KEY,
+                    nome VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    payment_status VARCHAR(50) DEFAULT 'pending',
+                    payment_amount DECIMAL(10,2),
+                    payment_txid VARCHAR(255),
+                    payment_qr_code TEXT,
+                    payment_pix_key VARCHAR(255),
+                    payment_updated_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Tabela invites
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS invites (
+                    id SERIAL PRIMARY KEY,
+                    organization_id INTEGER NOT NULL,
+                    email VARCHAR(255),
+                    role VARCHAR(50) DEFAULT 'collab',
+                    code VARCHAR(255) UNIQUE NOT NULL,
+                    used INTEGER DEFAULT 0,
+                    used_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (organization_id) REFERENCES organizations(id)
+                )
+            """)
+            
+            print("Banco PostgreSQL inicializado com sucesso!")
+    finally:
+        conn.close()
+
+def create_user(organization_id, nome, email, senha, role="collab", ativo=1):
+    """Cria usuário no PostgreSQL"""
+    conn = connect()
+    try:
+        password_hash = generate_password_hash(senha)
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO users (organization_id, nome, email, senha, role, ativo, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (organization_id, nome.strip(), email.strip().lower(), password_hash, role, int(ativo), datetime.utcnow()))
+            
+            user_id = cur.fetchone()[0]
+            print(f"Usuário criado com ID: {user_id}")
+            return user_id
+    finally:
+        conn.close()
+
+def authenticate(email, senha):
+    """Autentica usuário no PostgreSQL"""
+    if not email or not senha:
+        print("Email ou senha vazios")
+        return None
+
+    conn = connect()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, organization_id, nome, email, senha, role, ativo
+                FROM users
+                WHERE email = %s
+            """, (email.strip().lower(),))
+            
+            row = cur.fetchone()
+            print(f"Usuário encontrado: {row}")
+            
+            if not row or int(row["ativo"]) != 1:
+                print("Usuário não encontrado ou inativo")
+                return None
+
+            print(f"Verificando senha...")
+            if not check_password_hash(row["senha"], senha):
+                print("Senha incorreta")
+                return None
+
+            print("Autenticação bem-sucedida!")
+            return {
+                "id": row["id"],
+                "organization_id": row["organization_id"],
+                "nome": row["nome"],
+                "email": row["email"],
+                "role": row["role"],
+            }
+    finally:
+        conn.close()
+
+def ensure_superadmin(email, senha):
+    """Garante que superadmin exista no PostgreSQL"""
+    if not email or not senha:
+        return None
+
+    email_norm = email.strip().lower()
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            # Verificar se já existe
+            cur.execute("SELECT id FROM users WHERE email = %s", (email_norm,))
+            existing = cur.fetchone()
+            
+            password_hash = generate_password_hash(senha)
+            
+            if existing:
+                # Atualizar existente
+                cur.execute("""
+                    UPDATE users
+                    SET senha = %s, role = 'superadmin', ativo = 1
+                    WHERE id = %s
+                """, (password_hash, existing[0]))
+                print(f"Superadmin atualizado com ID: {existing[0]}")
+                return existing[0]
+            else:
+                # Criar novo
+                cur.execute("""
+                    INSERT INTO users (organization_id, nome, email, senha, role, ativo, created_at)
+                    VALUES (NULL, 'Criador', %s, %s, 'superadmin', 1, %s)
+                    RETURNING id
+                """, (email_norm, password_hash, datetime.utcnow()))
+                
+                user_id = cur.fetchone()[0]
+                print(f"Superadmin criado com ID: {user_id}")
+                return user_id
+    finally:
+        conn.close()
+
+def get_user(user_id):
+    """Obtém usuário por ID"""
+    conn = connect()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, organization_id, nome, email, role, ativo
+                FROM users
+                WHERE id = %s
+            """, (user_id,))
+            
+            return cur.fetchone()
+    finally:
+        conn.close()
+
+def create_organization(nome, email, payment_amount=None):
+    """Cria organização no PostgreSQL"""
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO organizations (nome, email, payment_amount, created_at)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (nome.strip(), email.strip().lower(), payment_amount, datetime.utcnow()))
+            
+            org_id = cur.fetchone()[0]
+            print(f"Organização criada com ID: {org_id}")
+            return org_id
+    finally:
+        conn.close()
+
+def get_organization(org_id):
+    """Obtém organização por ID"""
+    conn = connect()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, nome, email, payment_status, payment_amount, payment_txid, payment_qr_code, payment_pix_key, created_at
+                FROM organizations
+                WHERE id = %s
+            """, (org_id,))
+            
+            return cur.fetchone()
+    finally:
+        conn.close()
+
+def organization_has_access(org_id):
+    """Verifica se organização tem acesso"""
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT payment_status FROM organizations WHERE id = %s
+            """, (org_id,))
+            
+            result = cur.fetchone()
+            return result and result[0] == 'paid'
+    finally:
+        conn.close()
+
+def list_users(org_id):
+    """Lista usuários de uma organização"""
+    conn = connect()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, nome, email, role, ativo, created_at
+                FROM users
+                WHERE organization_id = %s
+                ORDER BY created_at DESC
+            """, (org_id,))
+            
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+def set_organization_payment_pending(org_id, txid, qr_code, pix_key):
+    """Define pagamento como pendente"""
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE organizations
+                SET payment_status = 'pending', payment_txid = %s, payment_qr_code = %s, payment_pix_key = %s, payment_updated_at = %s
+                WHERE id = %s
+            """, (txid, qr_code, pix_key, datetime.utcnow(), org_id))
+    finally:
+        conn.close()
+
+def set_organization_paid(org_id):
+    """Define organização como paga"""
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE organizations
+                SET payment_status = 'paid', payment_updated_at = %s
+                WHERE id = %s
+            """, (datetime.utcnow(), org_id))
+    finally:
+        conn.close()
+
+def create_invite(org_id, email, role="collab"):
+    """Cria convite"""
+    import secrets
+    code = secrets.token_urlsafe(8)
+    
+    conn = connect()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO invites (organization_id, email, role, code, created_at)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (org_id, email.strip().lower(), role, code, datetime.utcnow()))
+            
+            return cur.fetchone()[0], code
+    finally:
+        conn.close()
+
+def redeem_invite(code, nome, email, senha):
+    """Resgata convite"""
+    conn = connect()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT i.id, i.organization_id, i.email, i.role
+                FROM invites i
+                WHERE i.code = %s AND i.used = 0
+            """, (code,))
+            
+            invite = cur.fetchone()
+            if not invite:
+                return False, "Convite inválido ou já usado", None
+            
+            if invite["email"] and invite["email"] != email.strip().lower():
+                return False, "Este convite é para outro email", None
+            
+            # Criar usuário
+            user_id = create_user(invite["organization_id"], nome, email.strip().lower(), senha, invite["role"])
+            
+            # Marcar convite como usado
+            cur.execute("""
+                UPDATE invites
+                SET used = 1, used_at = %s
+                WHERE id = %s
+            """, (datetime.utcnow(), invite["id"]))
+            
+            return True, "Usuário criado com sucesso", user_id
+    finally:
+        conn.close()
+
+def list_invites(org_id):
+    """Lista convites de uma organização"""
+    conn = connect()
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, email, role, code, used, used_at, created_at
+                FROM invites
+                WHERE organization_id = %s
+                ORDER BY created_at DESC
+            """, (org_id,))
+            
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+print("Módulo PostgreSQL carregado com sucesso!")

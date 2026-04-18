@@ -19,21 +19,40 @@ import socket
 
 from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
 
-from web_access_db import (
-    init_db as _init_access_db,
-    ensure_superadmin as _ensure_superadmin,
-    authenticate as _auth_user,
-    get_user as _get_user,
-    get_organization as _get_org,
-    organization_has_access as _org_has_access,
-    create_organization as _create_org,
-    create_user as _create_user,
-    create_invite as _create_invite,
-    redeem_invite as _redeem_invite,
-    list_invites as _list_invites,
-    list_users as _list_users,
-    set_organization_payment_pending as _org_set_pending,
-    set_organization_paid as _org_set_paid,
+# Usar PostgreSQL no Render, SQLite localmente
+if os.environ.get('RENDER'):
+    from web_access_db_postgres import (
+        init_db as _init_access_db,
+        ensure_superadmin as _ensure_superadmin,
+        authenticate as _auth_user,
+        get_user as _get_user,
+        get_organization as _get_org,
+        organization_has_access as _org_has_access,
+        create_organization as _create_org,
+        create_user as _create_user,
+        create_invite as _create_invite,
+        redeem_invite as _redeem_invite,
+        list_invites as _list_invites,
+        list_users as _list_users,
+        set_organization_payment_pending as _org_set_pending,
+        set_organization_paid as _org_set_paid,
+    )
+else:
+    from web_access_db import (
+        init_db as _init_access_db,
+        ensure_superadmin as _ensure_superadmin,
+        authenticate as _auth_user,
+        get_user as _get_user,
+        get_organization as _get_org,
+        organization_has_access as _org_has_access,
+        create_organization as _create_org,
+        create_user as _create_user,
+        create_invite as _create_invite,
+        redeem_invite as _redeem_invite,
+        list_invites as _list_invites,
+        list_users as _list_users,
+        set_organization_payment_pending as _org_set_pending,
+        set_organization_paid as _org_set_paid,
 )
 
 from pagbank_client import client_from_env as _pagbank_from_env
