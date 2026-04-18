@@ -186,11 +186,16 @@ var orgNomeWrap = document.getElementById('orgNomeWrap');
 var cpfWrap = document.getElementById('cpfWrap');
 var orgNome = document.getElementById('orgNome');
 
+// Sempre mostrar campo org_nome como obrigatório
+if (orgNomeWrap && orgNome) {
+    orgNomeWrap.style.display = 'block';
+    orgNome.required = true;
+}
+
 if (codigo && orgNomeWrap && cpfWrap && orgNome) {
     codigo.oninput = function() {
         var isColab = codigo.value.trim().length > 0;
-        orgNomeWrap.style.display = isColab ? 'none' : 'block';
-        cpfWrap.style.display = isColab ? 'none' : 'block';
+        // Se for colaborador, org_nome não é obrigatório
         orgNome.required = !isColab;
     };
 }
