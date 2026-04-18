@@ -1158,6 +1158,43 @@ def get_stats():
     return jsonify(stats)
 
 
+def _garantir_superadmin():
+    """Garante que o superadmin exista no banco"""
+    print("=== GARANTINDO SUPERADMIN ===")
+    
+    try:
+        from web_access_db import ensure_superadmin, authenticate, connect
+        
+        # Verificar se superadmin já existe
+        test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        if test_user:
+            print("✅ Superadmin já existe e funciona!")
+            return
+        
+        # Criar superadmin
+        print("❌ Superadmin não encontrado, criando...")
+        result = ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        print(f"✅ Superadmin criado com ID: {result}")
+        
+        # Testar novamente
+        test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        if test_user:
+            print("✅ Superadmin criado e autenticado com sucesso!")
+        else:
+            print("❌ ERRO: Superadmin criado mas não autentica!")
+        
+        # Listar usuários
+        conn = connect()
+        users = conn.execute("SELECT id, email, role FROM users").fetchall()
+        print(f"📋 Usuários no banco: {users}")
+        conn.close()
+        
+    except Exception as e:
+        print(f"❌ ERRO AO GARANTIR SUPERADMIN: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def executar_modulo_desktop(module_name):
     """Executa um modulo desktop como se fosse script (__main__)."""
     try:
@@ -1224,31 +1261,10 @@ if __name__ == '__main__':
         if IS_RENDER:
             print("=== INICIALIZANDO BANCO NO RENDER ===")
             _init_access_db()
-            print("Banco inicializado, criando superadmin...")
-            result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
-            print(f"Superadmin criado com ID: {result}")
+            print("Banco inicializado, garantindo superadmin...")
             
-            # Verificar se banco foi criado
-            from planilhas_paths import get_db_path
-            print(f"Caminho do banco: {get_db_path()}")
-            
-            # Verificar se superadmin existe
-            from web_access_db import authenticate
-            test_user = authenticate("superadmin@planilhas.com", "GpA1XmI86lGB309W")
-            print(f"Teste de autenticação: {test_user}")
-            
-            # Listar todos os usuários
-            from web_access_db import connect
-            conn = connect()
-            users = conn.execute("SELECT id, email, role FROM users").fetchall()
-            print(f"Usuários no banco: {users}")
-            conn.close()
-            
-            # Verificar estrutura da tabela
-            conn = connect()
-            schema = conn.execute("PRAGMA table_info(users)").fetchall()
-            print(f"Estrutura da tabela users: {schema}")
-            conn.close()
+            # Garantir superadmin
+            _garantir_superadmin()
         
         if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
             sys.exit(executar_modulo_desktop(sys.argv[2]))
