@@ -386,6 +386,55 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/create-superadmin-manual")
+def create_superadmin_manual():
+    """Criar superadmin imediatamente sem login"""
+    try:
+        print("=== CRIANDO SUPERADMIN MANUALMENTE ===")
+        
+        # Inicializar banco primeiro
+        _init_access_db()
+        print("Banco inicializado")
+        
+        # Criar superadmin
+        result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        print(f"Resultado superadmin: {result}")
+        
+        # Criar usuário comum
+        try:
+            user_result = _create_user(
+                email="santossilvac990@gmail.com",
+                senha="celio48santos",
+                nome="Usuario Teste",
+                role="user"
+            )
+            print(f"Resultado usuário: {user_result}")
+        except Exception as e:
+            print(f"Usuário já existe ou erro: {e}")
+        
+        # Testar autenticação superadmin
+        test_superadmin = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        if test_superadmin:
+            print("Superadmin criado e autenticado com sucesso!")
+        else:
+            print("ERRO: Superadmin não autenticou!")
+            
+        # Testar autenticação usuário
+        test_user = _auth_user("santossilvac990@gmail.com", "celio48santos")
+        if test_user:
+            print("Usuário criado e autenticado com sucesso!")
+        else:
+            print("ERRO: Usuário não autenticou!")
+        
+        return "Superadmin e usuário criados com sucesso! Tente fazer login agora."
+        
+    except Exception as e:
+        print(f"ERRO AO CRIAR SUPERADMIN: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Erro: {e}", 500
+
+
 @app.route("/admin/create-superadmin", methods=["GET", "POST"])
 def create_superadmin():
     """Endpoint para criar superadmin manualmente (debug)"""
@@ -397,21 +446,22 @@ def create_superadmin():
         
         # Criar superadmin
         result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
-        print(f"Superadmin criado com ID: {result}")
+        print(f"Resultado: {result}")
         
         # Testar autenticação
         test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
-        print(f"Teste de autenticação: {test_user}")
+        if test_user:
+            print("Superadmin criado e autenticado com sucesso!")
+        else:
+            print("ERRO: Superadmin criado mas não autentica!")
         
-        return f"""
-        <h1>Superadmin Criado!</h1>
-        <p>ID: {result}</p>
-        <p>Teste autenticação: {test_user}</p>
-        <a href="/comecar">Ir para login</a>
-        """
+        return redirect(url_for("index"))
+        
     except Exception as e:
-        print(f"ERRO: {e}")
-        return f"ERRO: {e}"
+        print(f"ERRO AO CRIAR SUPERADMIN: {e}")
+        import traceback
+        traceback.print_exc()
+        return f"Erro: {e}", 500
 
 
 @app.route("/login", methods=["POST"])
