@@ -12,3 +12,22 @@ temp_images/
 temp_upload/
 uploads/
 exportacoes/
+
+# Builds
+dist/
+build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Runtime files
+*.pid
+*.sock
+
+# Backup files
+*.bak
+*.backup
+*~
