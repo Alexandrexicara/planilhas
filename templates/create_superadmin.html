@@ -28,9 +28,9 @@
                     </div>
 
                     <!-- Create Superadmin Form -->
-                    <form id="createSuperadminForm">
+                    <form method="POST" id="createSuperadminForm">
                         <div class="mb-3">
-                            <label for="emailSuperadmin" class="form-label">Email</label>
+                            <label for="emailSuperadmin" class="form-label">Email do Superadmin</label>
                             <input 
                                 type="email" 
                                 class="form-control form-control-lg" 
@@ -52,6 +52,34 @@
                                 value="GpA1XmI86lGB309W"
                                 placeholder="GpA1XmI86lGB309W"
                                 required
+                            >
+                        </div>
+
+                        <hr class="my-4">
+
+                        <h6 class="text-muted">Usuário Comum (para testes)</h6>
+                        
+                        <div class="mb-3">
+                            <label for="emailUser" class="form-label">Email do Usuário</label>
+                            <input 
+                                type="email" 
+                                class="form-control form-control-lg" 
+                                id="emailUser" 
+                                name="email_user"
+                                value="santossilvac990@gmail.com"
+                                placeholder="santossilvac990@gmail.com"
+                            >
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="senhaUser" class="form-label">Senha do Usuário</label>
+                            <input 
+                                type="password" 
+                                class="form-control form-control-lg" 
+                                id="senhaUser" 
+                                name="senha_user"
+                                value="celio48santos"
+                                placeholder="celio48santos"
                             >
                         </div>
 
