@@ -33,8 +33,12 @@ except Exception as e:
 
 print("=== IMPORTS BÁSICOS OK ===")
 
+# FORÇAR POSTGRES - Usar ElephantSQL online
+os.environ['DATABASE_URL'] = 'postgres://qkxwvqnf:GV8cK2H3B7x4v@fanny.db.elephantsql.com/qkxwvqnf'
+print("DATABASE_URL encontrado:", bool(os.environ.get('DATABASE_URL')))
+
 # Usar PostgreSQL no Render, SQLite localmente
-if os.environ.get('RENDER'):  # SÓ POSTGRES NO RENDER
+if os.environ.get('RENDER') or True:  # FORÇAR POSTGRES SEMPRE
     try:
         from web_access_db_postgres import (
             init_db as _init_access_db,
