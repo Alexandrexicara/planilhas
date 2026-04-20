@@ -464,6 +464,11 @@ def create_superadmin():
         return f"Erro: {e}", 500
 
 
+@app.route("/login", methods=["GET"])
+def login_page():
+    """Página de login estática"""
+    return app.send_static_file('login.html')
+
 @app.route("/login", methods=["POST"])
 def login():
     print(f"=== DEBUG ROTA /LOGIN ===")
@@ -1138,12 +1143,11 @@ def executar_sistema_legado():
 def executar_sistema():
     """Abre as janelas do sistema original e/ou PLUS a partir do Flask."""
     try:
-        # Se alguem ainda estiver usando o link antigo "/executar-sistema" sem target,
-        # envie para a tela de login/cadastro (fluxo correto de onboarding).
+        # Executa diretamente o sistema Plus quando não há target especificado
         if not request.args.get("target"):
-            return redirect(url_for("comecar"))
-
-        alvo = request.args.get('target', 'both').lower()
+            alvo = 'plus'
+        else:
+            alvo = request.args.get('target', 'both').lower()
         scripts_por_alvo = {
             'original': [('sistema.py', 'Sistema Original')],
             'plus': [('sistema_plus.py', 'Sistema Plus')],
