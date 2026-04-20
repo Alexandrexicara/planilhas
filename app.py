@@ -1,9 +1,10 @@
 import sys
+import os
 
 print("=== APP INICIANDO ===")
 print("Python version:", sys.version)
 print("Working directory:", os.getcwd())
-print("Environment variables:", dict(os.environ))
+print("DATABASE_URL encontrado:", bool(os.environ.get('DATABASE_URL')))
 
 try:
     from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
