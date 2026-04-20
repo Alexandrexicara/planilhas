@@ -235,13 +235,13 @@
                     Pronto para transformar sua gestão de produtos?
                 </h2>
                 <p class="lead mb-4">
-                    Faça login e conclua o pagamento para liberar o acesso ao sistema
+                    Acesso direto ao sistema sem necessidade de login ou pagamento
                 </p>
                 <div class="d-flex justify-content-center gap-3">
-                    <a href="{{ url_for('comecar', next=url_for('sistema_dashboard')) }}" class="btn btn-gradient btn-lg">
+                    <a href="{{ url_for('executar_sistema') }}" class="btn btn-gradient btn-lg">
                         <i class="fas fa-play"></i> Começar Agora
                     </a>
-                    <a href="{{ url_for('comecar', next=url_for('catalog')) }}" class="btn btn-outline-primary btn-lg">
+                    <a href="{{ url_for('catalog') }}" class="btn btn-outline-primary btn-lg">
                         <i class="fas fa-plus-circle"></i> Novos Produtos
                     </a>
                 </div>
