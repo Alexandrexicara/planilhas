@@ -466,8 +466,17 @@ def create_superadmin():
 
 @app.route("/login", methods=["GET"])
 def login_page():
-    """Página de login estática"""
-    return app.send_static_file('login.html')
+    """Página de login"""
+    print("=== DEBUG LOGIN PAGE (TEMPLATE) ===")
+    print("Renderizando template: login.html")
+    return render_template('login.html')
+
+@app.route("/cadastro")
+def cadastro_page():
+    """Página de cadastro"""
+    print("=== DEBUG CADASTRO PAGE (TEMPLATE) ===")
+    print("Renderizando template: cadastro.html")
+    return render_template('cadastro.html')
 
 @app.route("/login", methods=["POST"])
 def login():

@@ -169,6 +169,10 @@ def create_user(organization_id, nome, email, senha, role="collab", ativo=1):
 
 def authenticate(email, senha):
     """Autentica usuário no PostgreSQL ou SQLite"""
+    print(f"=== DEBUG AUTHENTICATE ===")
+    print(f"Email recebido: '{email}'")
+    print(f"Senha recebida: '{senha[:3]}***' (len={len(senha)})")
+    
     if not email or not senha:
         print("Email ou senha vazios")
         return None
@@ -177,6 +181,17 @@ def authenticate(email, senha):
     try:
         db_url = get_db_url()
         is_postgres = bool(db_url)
+        print(f"Usando PostgreSQL: {is_postgres}")
+        
+        # Listar todos os usuários para debug
+        if is_postgres:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT id, email, role, ativo FROM users ORDER BY id")
+                all_users = cur.fetchall()
+                print(f"POSTGRES - Todos usuários: {all_users}")
+        else:
+            all_users = conn.execute("SELECT id, email, role, ativo FROM users ORDER BY id").fetchall()
+            print(f"SQLITE - Todos usuários: {all_users}")
         
         if is_postgres:
             # PostgreSQL
@@ -198,16 +213,23 @@ def authenticate(email, senha):
         
         print(f"Usuário encontrado: {row}")
         
-        if not row or int(row["ativo"]) != 1:
-            print("Usuário não encontrado ou inativo")
+        if not row:
+            print("Usuário não encontrado")
+            return None
+            
+        if int(row["ativo"]) != 1:
+            print(f"Usuário inativo (ativo={row['ativo']})")
             return None
 
         print(f"Verificando senha...")
+        print(f"Hash armazenado: {row['senha'][:50]}...")
+        print(f"Senha fornecida: '{senha}'")
+        
         if not check_password_hash(row["senha"], senha):
-            print("Senha incorreta")
+            print("❌ Senha incorreta")
             return None
 
-        print("Autenticação bem-sucedida!")
+        print("✅ Autenticação bem-sucedida!")
         return {
             "id": row["id"],
             "organization_id": row["organization_id"],

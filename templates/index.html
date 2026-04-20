@@ -25,7 +25,7 @@
                         <div class="original-price">De R$ {{ "%.2f"|format(config.valor_original) }}</div>
                         <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
                         <p class="mb-4">Pagamento único, acesso vitalício</p>
-                        <a href="{{ url_for('static', filename='login.html') }}" class="btn btn-light btn-lg px-5">
+                        <a href="{{ url_for('login_page') }}" class="btn btn-light btn-lg px-5">
                             <i class="fas fa-play"></i> Começar Agora
                         </a>
                         <small class="d-block mt-3">
