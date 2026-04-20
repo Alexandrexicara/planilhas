@@ -3,6 +3,35 @@
 {% block title %}planilhas.com - Importação Automática de Excel{% endblock %}
 
 {% block content %}
+<style>
+.countdown-display {
+    font-size: 4rem;
+    font-weight: bold;
+    color: #667eea;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+.progress {
+    height: 8px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 4px;
+    transition: width 1s linear;
+}
+</style>
+
 <!-- Hero Section -->
 <section class="hero-section">
     <div class="container">
@@ -25,9 +54,25 @@
                         <div class="original-price">De R$ {{ "%.2f"|format(config.valor_original) }}</div>
                         <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
                         <p class="mb-4">Pagamento único, acesso vitalício</p>
-                        <a href="{{ url_for('login_page') }}" class="btn btn-light btn-lg px-5">
+                        <button class="btn btn-light btn-lg px-5" onclick="startCountdown()" id="comecarBtn">
                             <i class="fas fa-play"></i> Começar Agora
-                        </a>
+                        </button>
+                        
+                        <!-- Countdown Modal -->
+                        <div class="modal fade" id="countdownModal" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-body text-center p-4">
+                                        <h4 class="mb-3">Preparando Sistema...</h4>
+                                        <div class="countdown-display" id="modalCountdown">10</div>
+                                        <div class="progress mb-3">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="modalProgress" style="width: 0%"></div>
+                                        </div>
+                                        <p class="text-muted">O sistema será iniciado em instantes...</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <small class="d-block mt-3">
                             <i class="fas fa-shield-alt"></i> Garantia de 7 dias | Suporte dedicado
                         </small>
@@ -322,5 +367,104 @@ const observer = new IntersectionObserver((entries) => {
 document.querySelectorAll('.stats-number').forEach(element => {
     observer.observe(element);
 });
+
+// Countdown functionality
+let countdown = 10;
+let countdownInterval;
+
+function startCountdown() {
+    const modal = new bootstrap.Modal(document.getElementById('countdownModal'));
+    const countdownDisplay = document.getElementById('modalCountdown');
+    const progressBar = document.getElementById('modalProgress');
+    const btn = document.getElementById('comecarBtn');
+    
+    // Disable button and show modal
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Preparando...';
+    modal.show();
+    
+    // Start countdown
+    countdownInterval = setInterval(() => {
+        countdown--;
+        countdownDisplay.textContent = countdown;
+        
+        // Update progress bar
+        const progress = ((10 - countdown) / 10) * 100;
+        progressBar.style.width = progress + '%';
+        
+        // Add urgency effect
+        if (countdown <= 3) {
+            countdownDisplay.style.color = '#dc3545';
+            countdownDisplay.style.transform = 'scale(1.2)';
+        }
+        
+        if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            modal.hide();
+            executeSystem();
+        }
+    }, 1000);
+}
+
+// Check download limit
+function checkDownloadLimit() {
+    const downloadCount = localStorage.getItem('planilhas_download_count') || '0';
+    const remainingDownloads = 10 - parseInt(downloadCount);
+    
+    if (remainingDownloads <= 0) {
+        alert('Limite de downloads atingido! Você já baixou o sistema 10 vezes.\n\nPara mais downloads, entre em contato com o suporte.');
+        return false;
+    }
+    
+    return remainingDownloads;
+}
+
+function executeSystem() {
+    // Check download limit first
+    const remainingDownloads = checkDownloadLimit();
+    if (remainingDownloads === false) return;
+    
+    // Show warning if few downloads left
+    if (remainingDownloads <= 3) {
+        const confirmDownload = confirm(`Atenção: Você só tem mais ${remainingDownloads} downloads disponíveis!\n\nDeseja continuar com o download?`);
+        if (!confirmDownload) return;
+    }
+    
+    // Show executing message
+    const btn = document.getElementById('comecarBtn');
+    btn.innerHTML = `<i class="fas fa-download"></i> Baixando Sistema (${remainingDownloads}/10 restantes)...`;
+    
+    // Download the executable
+    const link = document.createElement('a');
+    link.href = '/static/planilhas.exe';
+    link.download = 'planilhas.exe';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Update download count
+    const currentCount = parseInt(localStorage.getItem('planilhas_download_count') || '0');
+    localStorage.setItem('planilhas_download_count', currentCount + 1);
+    
+    // Show download complete message
+    setTimeout(() => {
+        btn.innerHTML = '<i class="fas fa-check"></i> Download Concluído!';
+        btn.className = 'btn btn-success btn-lg px-5';
+        
+        // Execute system after download
+        setTimeout(() => {
+            btn.innerHTML = '<i class="fas fa-rocket"></i> Executando Sistema...';
+            
+            // Try to execute the downloaded file
+            try {
+                window.open('file:///C:/Users/%USERNAME%/Downloads/planilhas.exe', '_blank');
+            } catch (e) {
+                // Fallback: show instructions
+                alert('Sistema baixado! Verifique sua pasta Downloads e execute o arquivo planilhas.exe');
+            }
+        }, 2000);
+    }, 3000);
+}
 </script>
 {% endblock %}

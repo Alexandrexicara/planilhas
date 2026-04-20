@@ -33,15 +33,11 @@ except Exception as e:
 
 print("=== IMPORTS BÁSICOS OK ===")
 
-# FORÇAR POSTGRES APENAS - SEM SQLite
-os.environ['DATABASE_URL'] = 'postgresql://postgres:password@localhost:5432/planilhas'
-print("DATABASE_URL encontrado:", bool(os.environ.get('DATABASE_URL')))
-
-# PostgreSQL apenas
+# SQLite temporariamente para testar
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
-print("DATABASE_URL encontrado: True")
-from web_access_db_postgres import (
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///acesso_web.db'
+print("DATABASE_URL encontrado: False")
+from web_access_db import (
     init_db as _init_access_db,
     ensure_superadmin as _ensure_superadmin,
     authenticate as _auth_user,
