@@ -1,80 +1,225 @@
 {% extends "base.html" %}
 
-{% block title %}planilhas.com - Importação Automática de Excel{% endblock %}
+{% block title %}planilhas.com - Sistema Completo{% endblock %}
 
 {% block content %}
-<style>
-.countdown-display {
-    font-size: 4rem;
-    font-weight: bold;
-    color: #667eea;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-    animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-}
-
-.progress {
-    height: 8px;
-    background: rgba(255, 255, 255, 0.3);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #667eea, #764ba2);
-    border-radius: 4px;
-    transition: width 1s linear;
-}
-</style>
-
-<!-- Hero Section -->
+<!-- Hero Section Simplificado -->
 <section class="hero-section">
     <div class="container">
-        <h1 class="hero-title">
-            <img src="{{ url_for('static', filename='branding/logo-planilhas.png') }}" alt="Logo planilhas.com" style="width: 56px; height: 56px; border-radius: 12px; margin-right: 8px; object-fit: cover;">
-            planilhas.com
-        </h1>
-        <p class="hero-subtitle">
-            Importação automática de Excel com extração inteligente de imagens
-        </p>
+        <div class="text-center">
+            <h1 class="hero-title">
+                <img src="{{ url_for('static', filename='branding/logo-planilhas.png') }}" alt="Logo planilhas.com" style="width: 80px; height: 80px; border-radius: 12px; margin-bottom: 20px; object-fit: cover;">
+                <br>planilhas.com
+            </h1>
+            <p class="hero-subtitle">
+                Sistema Completo de Gestão
+            </p>
+            
+            <a href="/executar-sistema" class="btn btn-light btn-lg px-5" id="comecarBtn">
+                <i class="fas fa-play"></i> Começar Agora
+            </a>
+            <small class="d-block mt-3">
+                <i class="fas fa-shield-alt"></i> Garantia de 7 dias | Suporte dedicado
+            </small>
+        </div>
+    </div>
+</section>
+
+<!-- Sobre o Sistema -->
+<section class="py-5" style="background: rgba(255,255,255,0.1);">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h2 class="display-5 fw-bold text-white mb-4">
+                    <i class="fas fa-info-circle text-primary"></i> Sobre o Sistema
+                </h2>
+                <p class="lead text-white-50">
+                    O <strong>planilhas.com</strong> é um sistema completo de gestão de produtos e importação de dados via Excel. 
+                    Desenvolvido para facilitar o cadastro e organização de produtos com extração automática de imagens.
+                </p>
+                <ul class="list-unstyled text-white-50 mt-3">
+                    <li><i class="fas fa-check text-success me-2"></i> Importação automática de Excel</li>
+                    <li><i class="fas fa-check text-success me-2"></i> Extração inteligente de imagens</li>
+                    <li><i class="fas fa-check text-success me-2"></i> Gestão completa de produtos</li>
+                    <li><i class="fas fa-check text-success me-2"></i> Interface moderna e intuitiva</li>
+                </ul>
+            </div>
+            <div class="col-md-6 text-center">
+                <div class="p-4 bg-white rounded shadow-lg">
+                    <i class="fas fa-laptop-code fa-5x text-primary mb-3"></i>
+                    <h4>Sistema Desktop Profissional</h4>
+                    <p class="text-muted">Execute diretamente no seu computador</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Recursos -->
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-5 fw-bold text-white">
+                <i class="fas fa-star text-warning"></i> Recursos Principais
+            </h2>
+            <p class="lead text-white-50">Tudo que você precisa para gerenciar seus produtos</p>
+        </div>
         
-        <div class="row justify-content-center mb-5">
-            <div class="col-md-8">
-                <div class="card price-card">
-                    <div class="card-body text-center position-relative">
-                        <div class="discount-badge">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-lg">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-file-excel fa-3x text-success"></i>
+                        </div>
+                        <h4>Importação Excel</h4>
+                        <p class="text-muted">Importe planilhas automaticamente com detecção inteligente de colunas e dados.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-lg">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-images fa-3x text-info"></i>
+                        </div>
+                        <h4>Extração de Imagens</h4>
+                        <p class="text-muted">Extrai automaticamente imagens coladas no Excel e associa aos produtos.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-lg">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-database fa-3x text-primary"></i>
+                        </div>
+                        <h4>Gestão Completa</h4>
+                        <p class="text-muted">Cadastro, edição, exclusão e organização completa de produtos e clientes.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-lg">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-search fa-3x text-warning"></i>
+                        </div>
+                        <h4>Busca Avançada</h4>
+                        <p class="text-muted">Encontre produtos rapidamente com sistema de busca inteligente e filtros.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-lg">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-chart-bar fa-3x text-danger"></i>
+                        </div>
+                        <h4>Relatórios</h4>
+                        <p class="text-muted">Gere relatórios detalhados de produtos, clientes e importações.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-lg">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-shield-alt fa-3x text-success"></i>
+                        </div>
+                        <h4>Segurança</h4>
+                        <p class="text-muted">Sistema seguro com controle de acesso e backup automático de dados.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Como Funciona -->
+<section class="py-5" style="background: rgba(255,255,255,0.1);">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="display-5 fw-bold text-white">
+                <i class="fas fa-cogs text-primary"></i> Como Funciona
+            </h2>
+            <p class="lead text-white-50">Em apenas 3 passos você estará usando o sistema</p>
+        </div>
+        
+        <div class="row g-4">
+            <div class="col-md-4 text-center">
+                <div class="p-4">
+                    <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <span class="display-4 fw-bold">1</span>
+                    </div>
+                    <h4 class="text-white">Baixe o Sistema</h4>
+                    <p class="text-white-50">Clique em "Começar Agora" para baixar o executável do sistema.</p>
+                </div>
+            </div>
+            
+            <div class="col-md-4 text-center">
+                <div class="p-4">
+                    <div class="rounded-circle bg-success text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <span class="display-4 fw-bold">2</span>
+                    </div>
+                    <h4 class="text-white">Execute</h4>
+                    <p class="text-white-50">Abra o arquivo baixado e execute o sistema em seu computador.</p>
+                </div>
+            </div>
+            
+            <div class="col-md-4 text-center">
+                <div class="p-4">
+                    <div class="rounded-circle bg-warning text-white d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <span class="display-4 fw-bold">3</span>
+                    </div>
+                    <h4 class="text-white">Comece a Usar</h4>
+                    <p class="text-white-50">Importe suas planilhas e comece a gerenciar seus produtos.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Preço -->
+<section class="py-5">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card price-card border-0 shadow-lg">
+                    <div class="card-body text-center p-5 position-relative">
+                        <div class="discount-badge position-absolute top-0 end-0 m-3">
                             <i class="fas fa-tag"></i> {{ config.desconto }}% OFF
                         </div>
-                        <h3 class="mb-4">Sistema Completo de Importação</h3>
-                        <div class="original-price">De R$ {{ "%.2f"|format(config.valor_original) }}</div>
-                        <div class="current-price">R$ {{ "%.2f"|format(config.valor_promocional) }}</div>
-                        <p class="mb-4">Pagamento único, acesso vitalício</p>
-                        <button class="btn btn-light btn-lg px-5" onclick="startCountdown()" id="comecarBtn">
-                            <i class="fas fa-play"></i> Começar Agora
-                        </button>
                         
-                        <!-- Countdown Modal -->
-                        <div class="modal fade" id="countdownModal" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-body text-center p-4">
-                                        <h4 class="mb-3">Preparando Sistema...</h4>
-                                        <div class="countdown-display" id="modalCountdown">10</div>
-                                        <div class="progress mb-3">
-                                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="modalProgress" style="width: 0%"></div>
-                                        </div>
-                                        <p class="text-muted">O sistema será iniciado em instantes...</p>
-                                    </div>
-                                </div>
-                            </div>
+                        <h3 class="mb-4">Sistema Completo</h3>
+                        <div class="original-price text-muted text-decoration-line-through">
+                            De R$ {{ "%.2f"|format(config.valor_original) }}
                         </div>
-                        <small class="d-block mt-3">
-                            <i class="fas fa-shield-alt"></i> Garantia de 7 dias | Suporte dedicado
+                        <div class="current-price display-4 fw-bold text-primary mb-3">
+                            R$ {{ "%.2f"|format(config.valor_promocional) }}
+                        </div>
+                        <p class="mb-4">Pagamento único, acesso vitalício</p>
+                        
+                        <ul class="list-unstyled text-start mb-4">
+                            <li><i class="fas fa-check text-success me-2"></i> Importação ilimitada de Excel</li>
+                            <li><i class="fas fa-check text-success me-2"></i> Extração de imagens</li>
+                            <li><i class="fas fa-check text-success me-2"></i> Gestão completa de produtos</li>
+                            <li><i class="fas fa-check text-success me-2"></i> Relatórios e estatísticas</li>
+                            <li><i class="fas fa-check text-success me-2"></i> Suporte técnico</li>
+                            <li><i class="fas fa-check text-success me-2"></i> Atualizações gratuitas</li>
+                        </ul>
+                        
+                        <a href="/executar-sistema" class="btn btn-primary btn-lg w-100">
+                            <i class="fas fa-play"></i> Começar Agora
+                        </a>
+                        
+                        <small class="d-block mt-3 text-muted">
+                            <i class="fas fa-shield-alt"></i> Garantia de 7 dias
                         </small>
                     </div>
                 </div>
@@ -83,99 +228,68 @@
     </div>
 </section>
 
-<!-- Features Section -->
-<section class="py-5">
+<!-- FAQ -->
+<section class="py-5" style="background: rgba(255,255,255,0.1);">
     <div class="container">
         <div class="text-center mb-5">
             <h2 class="display-5 fw-bold text-white">
-                <i class="fas fa-star"></i> Recursos Principais
+                <i class="fas fa-question-circle text-info"></i> Perguntas Frequentes
             </h2>
-            <p class="lead text-white-50">
-                Tudo que você precisa para gerenciar seus produtos de forma profissional
-            </p>
         </div>
         
-        <div class="row g-4">
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-file-excel"></i>
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="accordion" id="faqAccordion">
+                    <div class="accordion-item mb-3 border-0 shadow-sm">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                <i class="fas fa-question text-primary me-2"></i> O que é o planilhas.com?
+                            </button>
+                        </h2>
+                        <div id="faq1" class="accordion-collapse collapse show" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                É um sistema desktop completo para gestão de produtos com importação automática de planilhas Excel e extração de imagens.
+                            </div>
                         </div>
-                        <h4 class="card-title">Importação Automática</h4>
-                        <p class="card-text">
-                            Importe planilhas Excel automaticamente com detecção inteligente de colunas
-                        </p>
                     </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-images"></i>
+                    
+                    <div class="accordion-item mb-3 border-0 shadow-sm">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                <i class="fas fa-question text-primary me-2"></i> Como funciona a importação de Excel?
+                            </button>
+                        </h2>
+                        <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                O sistema detecta automaticamente as colunas da planilha (código, nome, preço, etc.) e importa todos os dados, incluindo imagens embutidas.
+                            </div>
                         </div>
-                        <h4 class="card-title">Extração de Imagens</h4>
-                        <p class="card-text">
-                            Extrai automaticamente imagens coladas no Excel e associa aos produtos
-                        </p>
                     </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-globe"></i>
+                    
+                    <div class="accordion-item mb-3 border-0 shadow-sm">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                <i class="fas fa-question text-primary me-2"></i> Preciso pagar mensalidade?
+                            </button>
+                        </h2>
+                        <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                Não! O pagamento é único e você tem acesso vitalício ao sistema, incluindo atualizações gratuitas.
+                            </div>
                         </div>
-                        <h4 class="card-title">Catálogo Web</h4>
-                        <p class="card-text">
-                            Gere automaticamente um catálogo web profissional para seus produtos
-                        </p>
                     </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-database"></i>
+                    
+                    <div class="accordion-item mb-3 border-0 shadow-sm">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                                <i class="fas fa-question text-primary me-2"></i> Em quais sistemas operacionais funciona?
+                            </button>
+                        </h2>
+                        <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                            <div class="accordion-body">
+                                O sistema funciona em Windows 7, 8, 10 e 11. Requer apenas 4GB de RAM e 500MB de espaço em disco.
+                            </div>
                         </div>
-                        <h4 class="card-title">Banco de Dados</h4>
-                        <p class="card-text">
-                            Armazenamento seguro e organizado de todos os seus produtos
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-chart-bar"></i>
-                        </div>
-                        <h4 class="card-title">Relatórios</h4>
-                        <p class="card-text">
-                            Relatórios detalhados sobre importações e estatísticas de uso
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-bolt"></i>
-                        </div>
-                        <h4 class="card-title">Alta Performance</h4>
-                        <p class="card-text">
-                            Processamento rápido e eficiente mesmo com grandes volumes de dados
-                        </p>
                     </div>
                 </div>
             </div>
@@ -183,228 +297,25 @@
     </div>
 </section>
 
-<!-- Stats Section -->
+<!-- CTA Final -->
 <section class="py-5">
-    <div class="container">
-        <div class="row g-4" id="statsSection">
-            <div class="col-md-4">
-                <div class="stats-card">
-                    <div class="stats-number" id="totalProducts">-</div>
-                    <h5 class="text-muted">Produtos Importados</h5>
-                    <i class="fas fa-box fa-2x text-primary mt-3"></i>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stats-card">
-                    <div class="stats-number" id="totalClients">-</div>
-                    <h5 class="text-muted">Clientes Ativos</h5>
-                    <i class="fas fa-users fa-2x text-success mt-3"></i>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stats-card">
-                    <div class="stats-number" id="recentImports">-</div>
-                    <h5 class="text-muted">Importações Recentemente</h5>
-                    <i class="fas fa-clock fa-2x text-warning mt-3"></i>
-                </div>
-            </div>
-        </div>
+    <div class="container text-center">
+        <h2 class="display-5 fw-bold text-white mb-4">
+            Pronto para Começar?
+        </h2>
+        <p class="lead text-white-50 mb-4">
+            Baixe agora e comece a gerenciar seus produtos de forma profissional
+        </p>
+        <a href="/executar-sistema" class="btn btn-light btn-lg px-5">
+            <i class="fas fa-download"></i> Baixar Sistema Agora
+        </a>
     </div>
 </section>
 
-<!-- How It Works Section -->
-<section class="py-5">
-    <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="display-5 fw-bold text-white">
-                <i class="fas fa-cogs"></i> Como Funciona
-            </h2>
-            <p class="lead text-white-50">
-                Simples, rápido e eficiente em 3 passos
-            </p>
-        </div>
-        
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-upload"></i>
-                        </div>
-                        <h4 class="card-title">1. Envie o Excel</h4>
-                        <p class="card-text">
-                            Faça upload da sua planilha Excel com os produtos e imagens
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-magic"></i>
-                        </div>
-                        <h4 class="card-title">2. Processamento Automático</h4>
-                        <p class="card-text">
-                            O sistema extrai automaticamente os dados e imagens
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <div class="feature-icon">
-                            <i class="fas fa-shopping-cart"></i>
-                        </div>
-                        <h4 class="card-title">3. Catálogo Pronto</h4>
-                        <p class="card-text">
-                            Seu catálogo web está pronto para uso imediato
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- CTA Section -->
-<section class="py-5">
-    <div class="container">
-        <div class="card border-0 bg-white shadow-lg">
-            <div class="card-body text-center p-5">
-                <h2 class="mb-4">
-                    <i class="fas fa-rocket text-primary"></i> 
-                    Pronto para transformar sua gestão de produtos?
-                </h2>
-                <p class="lead mb-4">
-                    Acesso direto ao sistema sem necessidade de login ou pagamento
-                </p>
-                <div class="d-flex justify-content-center gap-3">
-                    <a href="{{ url_for('executar_sistema') }}" class="btn btn-gradient btn-lg">
-                        <i class="fas fa-play"></i> Começar Agora
-                    </a>
-                    <a href="{{ url_for('catalog') }}" class="btn btn-outline-primary btn-lg">
-                        <i class="fas fa-plus-circle"></i> Novos Produtos
-                    </a>
-                </div>
-                
-                <!-- Acesso Direto -->
-                <div class="mt-4 p-3 bg-light rounded">
-                    <h6 class="text-primary text-center mb-3">
-                        <i class="fas fa-bolt"></i> Acesso Direto
-                    </h6>
-                    <div class="d-flex justify-content-center gap-2">
-                        <a href="#" onclick="executarSistema()" class="btn btn-warning btn-sm">
-                            <i class="fas fa-play-circle"></i> Executar Sistema
-                        </a>
-                    </div>
-                    <p class="small text-muted text-center mb-0 mt-2">
-                        Acesso direto sem necessidade de login ou pagamento
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-{% endblock %}
-
-{% block scripts %}
 <script>
-// Função para executar sistema diretamente
-function executarSistema() {
-    alert('Executando sistema localmente...');
-    // Em produção, isso abriria o sistema local
-    window.open('file:///C:/sistema/planilhas-plus.html', '_blank');
-}
-
-// Carregar estatísticas
-document.addEventListener('DOMContentLoaded', function() {
-    fetch('/api/stats')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('totalProducts').textContent = data.total_products.toLocaleString('pt-BR');
-            document.getElementById('totalClients').textContent = data.total_clients.toLocaleString('pt-BR');
-            document.getElementById('recentImports').textContent = data.recent_imports.toLocaleString('pt-BR');
-        })
-        .catch(error => {
-            console.error('Erro ao carregar estatísticas:', error);
-        });
-});
-
-// Animação de números
-function animateValue(element, start, end, duration) {
-    const range = end - start;
-    const increment = range / (duration / 16);
-    let current = start;
-    
-    const timer = setInterval(() => {
-        current += increment;
-        if (current >= end) {
-            current = end;
-            clearInterval(timer);
-        }
-        element.textContent = Math.floor(current).toLocaleString('pt-BR');
-    }, 16);
-}
-
-// Observador para animar números quando visível
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            const element = entry.target;
-            const finalValue = parseInt(element.textContent.replace(/[^\d]/g, ''));
-            if (!isNaN(finalValue)) {
-                animateValue(element, 0, finalValue, 1000);
-            }
-            observer.unobserve(element);
-        }
-    });
-});
-
-document.querySelectorAll('.stats-number').forEach(element => {
-    observer.observe(element);
-});
-
-// Countdown functionality
-let countdown = 10;
-let countdownInterval;
-
-function startCountdown() {
-    const modal = new bootstrap.Modal(document.getElementById('countdownModal'));
-    const countdownDisplay = document.getElementById('modalCountdown');
-    const progressBar = document.getElementById('modalProgress');
-    const btn = document.getElementById('comecarBtn');
-    
-    // Disable button and show modal
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Preparando...';
-    modal.show();
-    
-    // Start countdown
-    countdownInterval = setInterval(() => {
-        countdown--;
-        countdownDisplay.textContent = countdown;
-        
-        // Update progress bar
-        const progress = ((10 - countdown) / 10) * 100;
-        progressBar.style.width = progress + '%';
-        
-        // Add urgency effect
-        if (countdown <= 3) {
-            countdownDisplay.style.color = '#dc3545';
-            countdownDisplay.style.transform = 'scale(1.2)';
-        }
-        
-        if (countdown <= 0) {
-            clearInterval(countdownInterval);
-            modal.hide();
-            executeSystem();
-        }
-    }, 1000);
-}
+console.log('=== PÁGINA CARREGADA ===');
+console.log('Botão "Começar Agora" encontrado');
+console.log('Função baixarExecutarSistema() pronta para uso');
 
 // Check download limit
 function checkDownloadLimit() {
@@ -419,10 +330,15 @@ function checkDownloadLimit() {
     return remainingDownloads;
 }
 
-function executeSystem() {
+// Direct download and execute system
+function baixarExecutarSistema() {
+    console.log('=== BOTÃO "COMEÇAR AGORA" CLICADO ===');
+    
     // Check download limit first
     const remainingDownloads = checkDownloadLimit();
     if (remainingDownloads === false) return;
+    
+    console.log('Downloads restantes:', remainingDownloads);
     
     // Show warning if few downloads left
     if (remainingDownloads <= 3) {
@@ -430,11 +346,13 @@ function executeSystem() {
         if (!confirmDownload) return;
     }
     
-    // Show executing message
     const btn = document.getElementById('comecarBtn');
     btn.innerHTML = `<i class="fas fa-download"></i> Baixando Sistema (${remainingDownloads}/10 restantes)...`;
+    btn.disabled = true;
     
-    // Download the executable
+    console.log('Iniciando download do planilhas.exe...');
+    
+    // Download executable
     const link = document.createElement('a');
     link.href = '/static/planilhas.exe';
     link.download = 'planilhas.exe';
@@ -447,10 +365,14 @@ function executeSystem() {
     const currentCount = parseInt(localStorage.getItem('planilhas_download_count') || '0');
     localStorage.setItem('planilhas_download_count', currentCount + 1);
     
+    console.log('Download concluído, contador atualizado:', currentCount + 1);
+    
     // Show download complete message
     setTimeout(() => {
         btn.innerHTML = '<i class="fas fa-check"></i> Download Concluído!';
         btn.className = 'btn btn-success btn-lg px-5';
+        
+        console.log('Iniciando execução do sistema...');
         
         // Execute system after download
         setTimeout(() => {
@@ -459,7 +381,9 @@ function executeSystem() {
             // Try to execute the downloaded file
             try {
                 window.open('file:///C:/Users/%USERNAME%/Downloads/planilhas.exe', '_blank');
+                console.log('Tentando executar arquivo via window.open...');
             } catch (e) {
+                console.log('Erro ao executar via window.open:', e);
                 // Fallback: show instructions
                 alert('Sistema baixado! Verifique sua pasta Downloads e execute o arquivo planilhas.exe');
             }

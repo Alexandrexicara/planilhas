@@ -120,16 +120,16 @@
 <body>
     <!-- Verificar se usuário está logado -->
     <script>
-        // Verificar autenticação no lado do cliente
+        // Check authentication - show message if not logged in
         fetch('/api/user/check')
             .then(response => response.json())
             .then(data => {
                 if (!data.authenticated) {
-                    window.location.href = '/comecar';
+                    console.log('Usuário não autenticado');
                 }
             })
             .catch(() => {
-                window.location.href = '/comecar';
+                console.log('Erro ao verificar autenticação');
             });
     </script>
     

@@ -1076,8 +1076,6 @@ def sistema_dashboard():
 
 
 @app.route('/download-exe', methods=['POST'])
-@_login_required
-@_paid_required
 def download_exe():
     """Baixa o executavel desktop mais recente publicado em releases/."""
     exe = get_latest_desktop_exe()
