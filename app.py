@@ -34,7 +34,7 @@ except Exception as e:
 print("=== IMPORTS BÁSICOS OK ===")
 
 # Usar PostgreSQL no Render, SQLite localmente
-if os.environ.get('RENDER'):
+if os.environ.get('RENDER'):  # SÓ POSTGRES NO RENDER
     try:
         from web_access_db_postgres import (
             init_db as _init_access_db,
@@ -46,17 +46,16 @@ if os.environ.get('RENDER'):
             create_organization as _create_org,
             create_user as _create_user,
             create_invite as _create_invite,
-            redeem_invite as _redeem_invite,
-            list_invites as _list_invites,
-            list_users as _list_users,
-            set_organization_payment_pending as _org_set_pending,
-            set_organization_paid as _org_set_paid,
         )
-        print("✅ web_access_db_postgres importado")
     except Exception as e:
-        print("❌ Erro ao importar web_access_db_postgres:", e)
+        print(f"❌ Erro ao importar web_access_db_postgres: {e}")
         raise
 else:
+    # SQLite local (fallback)
+    # SQLite local (fallback)
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///acesso_web.db'
+    print("DATABASE_URL encontrado: False")
     from web_access_db import (
         init_db as _init_access_db,
         ensure_superadmin as _ensure_superadmin,
