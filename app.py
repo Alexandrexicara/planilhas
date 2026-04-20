@@ -1,27 +1,5 @@
 import sys
 import os
-
-print("=== APP INICIANDO ===")
-print("Python version:", sys.version)
-print("Working directory:", os.getcwd())
-print("DATABASE_URL encontrado:", bool(os.environ.get('DATABASE_URL')))
-
-try:
-    from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
-    print("✅ Flask importado")
-except Exception as e:
-    print("❌ Erro ao importar Flask:", e)
-    raise
-
-try:
-    from werkzeug.security import generate_password_hash, check_password_hash
-    print("✅ Werkzeug importado")
-except Exception as e:
-    print("❌ Erro ao importar Werkzeug:", e)
-    raise
-
-import os
-import sys
 import sqlite3
 import zipfile
 import shutil
@@ -34,9 +12,17 @@ import runpy
 from functools import wraps
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import json
 from datetime import datetime
 import socket
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
+
+print("=== APP INICIANDO ===")
+print("Python version:", sys.version)
+print("Working directory:", os.getcwd())
+print("DATABASE_URL encontrado:", bool(os.environ.get('DATABASE_URL')))
 
 try:
     from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
