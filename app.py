@@ -162,6 +162,29 @@ BUILD_INFO = {
     'commit': os.environ.get('RENDER_GIT_COMMIT', '') or os.environ.get('VERCEL_GIT_COMMIT_SHA', ''),
 }
 
+# Inicialização no Render (executado pelo Gunicorn)
+if IS_RENDER:
+    print("=== RENDER DETECTADO - INICIALIZANDO BANCO ===")
+    try:
+        _init_access_db()
+        print("Banco PostgreSQL inicializado")
+        
+        # Criar superadmin se não existir
+        result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        print(f"Superadmin garantido: {result}")
+        
+        # Testar autenticação
+        test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
+        if test_user:
+            print("Superadmin autenticado com sucesso!")
+        else:
+            print("ERRO: Superadmin não autenticou!")
+            
+    except Exception as e:
+        print(f"ERRO NA INICIALIZACAO DO RENDER: {e}")
+        import traceback
+        traceback.print_exc()
+
 DESKTOP_RELEASES_DIRS = [
     os.path.join(BASE_DIR, 'releases'),
     os.path.join(BASE_DIR, 'dist'),
