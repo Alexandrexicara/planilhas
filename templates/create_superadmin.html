@@ -89,8 +89,8 @@
                     </form>
 
                     <div class="text-center mt-4">
-                        <a href="/comecar" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-sign-in-alt"></i> Ir para Login
+                        <a href="/executar-sistema" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-play"></i> Ir para Sistema
                         </a>
                     </div>
                 </div>
@@ -136,7 +136,7 @@ if (createSuperadminForm) {
             if (response.ok) {
                 Utils.showStatus('Superadmin criado com sucesso!', 'success');
                 setTimeout(function() {
-                    window.location.href = '/comecar';
+                    window.location.href = '/executar-sistema';
                 }, 2000);
             } else {
                 Utils.showStatus('Erro ao criar superadmin', 'danger');

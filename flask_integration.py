@@ -224,19 +224,16 @@ def logout():
     return redirect(url_for("login_page"))
 
 @app.route('/')
-@_login_required
 def index():
     """Página inicial atraente"""
     return render_template('index.html', config=SISTEMA_CONFIG)
 
 @app.route('/upload')
-@_login_required
 def upload_page():
     """Página de upload"""
     return render_template('upload.html', config=SISTEMA_CONFIG)
 
 @app.route('/api/upload', methods=['POST'])
-@_login_required
 def upload_excel():
     """API para upload e processamento de Excel"""
     try:
@@ -289,7 +286,6 @@ def catalog():
     return render_template('catalog.html', products=products, config=SISTEMA_CONFIG)
 
 @app.route('/api/stats')
-@_login_required
 def get_stats():
     """API de estatísticas do banco PLUS"""
     conn = get_db_connection()
@@ -307,7 +303,6 @@ def get_stats():
     return jsonify(stats)
 
 @app.route('/sistema')
-@_login_required
 def sistema_info():
     """Informações sobre o sistema Python existente"""
     return render_template('sistema_info.html', config=SISTEMA_CONFIG)
