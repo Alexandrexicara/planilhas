@@ -117,7 +117,7 @@ if IS_VERCEL and os.path.exists(BUNDLED_DB_PATH) and not os.path.exists(DB_PATH)
 SISTEMA_CONFIG = {
     'nome': 'planilhas.com',
     'valor_original': 5000.00,
-    'valor_promocional': 50.00,
+    'valor_promocional': 4500.00,
     'desconto': 10,
     'versao': '2.0',
     'recursos': [

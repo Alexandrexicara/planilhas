@@ -29,7 +29,7 @@ os.makedirs('static/uploads', exist_ok=True)
 SISTEMA_CONFIG = {
     'nome': 'Sistema Plus - Versão Web',
     'valor_original': 5000.00,
-    'valor_promocional': 50.00,
+    'valor_promocional': 4500.00,
     'desconto': 10,
     'versao': '2.0',
     'recursos': [

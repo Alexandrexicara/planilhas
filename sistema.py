@@ -316,10 +316,34 @@ def buscar_imagens_externas(caminho_arquivo, cliente):
         
         print(f"DEBUG: Nenhuma pasta de imagens encontrada para: {pastas_buscar}")
         return []
-        
+
     except Exception as e:
         print(f"DEBUG: Erro ao buscar imagens externas: {e}")
         return []
+
+def formatar_valor_celula(cell, nome_coluna=''):
+    """Formata o valor da célula preservando números e preços corretamente"""
+    if cell is None:
+        return ''
+    
+    # Se for número (int ou float)
+    if isinstance(cell, (int, float)):
+        # Se for coluna de preço/valor/amount, formatar com 2 casas decimais
+        coluna_lower = nome_coluna.lower() if nome_coluna else ''
+        if any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'total', 'unit']):
+            # Formatar com 2 casas decimais, usando ponto como separador
+            return f"{cell:.2f}"
+        else:
+            # Para outros números, converter para string sem perder precisão
+            if isinstance(cell, float):
+                # Remover .0 se for inteiro
+                if cell == int(cell):
+                    return str(int(cell))
+                return str(cell)
+            return str(cell)
+    
+    # Se for string, apenas limpar
+    return str(cell).strip()
 
 def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
     """Importa uma única planilha (versão simplificada e funcional)"""
@@ -446,7 +470,7 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
                         picture_valor = str(cell).strip() if cell is not None else ''
                         valores[col_name] = picture_valor or nome_imagem_principal
                     else:
-                        valores[col_name] = str(cell).strip() if cell is not None else ''
+                        valores[col_name] = formatar_valor_celula(cell, col_name)
             
             # Adicionar campos fixos
             valores['cliente'] = cliente
@@ -855,6 +879,14 @@ class SistemaPlanilhas:
         self.janela.geometry("1200x700")
         self.janela.configure(bg='#f0f0f0')
         
+        # Ícone da janela
+        try:
+            icon_path = os.path.join(BASE_DIR, "icon.ico")
+            if os.path.exists(icon_path):
+                self.janela.iconbitmap(icon_path)
+        except:
+            pass
+        
         # Variáveis
         self.termo_busca = tk.StringVar()
         self.cliente_selecionado = tk.StringVar(value="Todos")
@@ -937,7 +969,7 @@ class SistemaPlanilhas:
         
         # Logo no canto esquerdo
         try:
-            logo_path = os.path.join("img", "Penacho laranja em fundo neutro.png")
+            logo_path = os.path.join(BASE_DIR, "img", "Penacho laranja em fundo neutro.png")
             if os.path.exists(logo_path):
                 # Carregar e redimensionar imagem
                 logo_image = Image.open(logo_path)
@@ -1264,9 +1296,10 @@ class SistemaPlanilhas:
         """Limpa todos os dados do banco"""
         if messagebox.askyesno("Confirmar Limpeza", "Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita!"):
             try:
+                cursor = get_cursor()
                 cursor.execute("DELETE FROM produtos")
                 cursor.execute("DELETE FROM importacoes")
-                conn.commit()
+                get_connection().commit()
                 
                 self.atualizar_estatisticas()
                 self.atualizar_lista_clientes()

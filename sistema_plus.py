@@ -139,6 +139,30 @@ def criar_banco_plus():
 # FUNÃ‡Ã•ES OTIMIZADAS
 # ==============================
 
+def formatar_valor_celula(cell, nome_coluna=''):
+    """Formata o valor da célula preservando números e preços corretamente"""
+    if cell is None:
+        return ''
+    
+    # Se for número (int ou float)
+    if isinstance(cell, (int, float)):
+        # Se for coluna de preço/valor/amount, formatar com 2 casas decimais
+        coluna_lower = nome_coluna.lower() if nome_coluna else ''
+        if any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'total', 'unit']):
+            # Formatar com 2 casas decimais, usando ponto como separador
+            return f"{cell:.2f}"
+        else:
+            # Para outros números, converter para string sem perder precisão
+            if isinstance(cell, float):
+                # Remover .0 se for inteiro
+                if cell == int(cell):
+                    return str(int(cell))
+                return str(cell)
+            return str(cell)
+    
+    # Se for string, apenas limpar
+    return str(cell).strip()
+
 def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None, duplicatas=False):
     """ImportaÃ§Ã£o ultra-rÃ¡pida com controle de duplicatas"""
     print(f"DEBUG: Importar planilha PLUS: {caminho_arquivo}")
@@ -197,7 +221,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             for i, cell in enumerate(row):
                 if i in colunas_detectadas:
                     coluna_banco = colunas_detectadas[i]
-                    dados[coluna_banco] = str(cell).strip() if cell else ''
+                    dados[coluna_banco] = formatar_valor_celula(cell, coluna_banco)
             
             # Fallback: se PICTURE nao foi mapeada, usa o valor da primeira coluna
             if not dados.get('picture') and len(row) > 0 and row[0]:
@@ -567,6 +591,14 @@ class SistemaPlanilhasPlus:
         self.janela.geometry("1400x800")
         self.janela.configure(bg='#1a1a1a')
         
+        # Ícone da janela
+        try:
+            icon_path = os.path.join(BASE_DIR, "icon.ico")
+            if os.path.exists(icon_path):
+                self.janela.iconbitmap(icon_path)
+        except:
+            pass
+        
         # VariÃ¡veis
         self.termo_busca = tk.StringVar()
         self.cliente_selecionado = tk.StringVar(value="Todos")
@@ -680,7 +712,7 @@ class SistemaPlanilhasPlus:
         
         # Logo no canto esquerdo
         try:
-            logo_path = os.path.join("img", "Penacho laranja em fundo neutro.png")
+            logo_path = os.path.join(BASE_DIR, "img", "Penacho laranja em fundo neutro.png")
             if os.path.exists(logo_path):
                 # Carregar e redimensionar imagem
                 logo_image = Image.open(logo_path)
@@ -1045,36 +1077,36 @@ class SistemaPlanilhasPlus:
             messagebox.showerror("Erro de Exportacao", f"Nao foi possivel exportar:\n{str(e)}")
     
     def exportar_csv_plus(self):
-        """Exporta resultados PLUS para CSV (mesma funÃ§Ã£o do Excel)"""
+        """Exporta resultados PLUS para CSV (mesma função do Excel)"""
         self.exportar_excel_plus()
-    
+
     def mostrar_estatisticas_detalhadas(self):
         stats_text = f"""
-ðŸ“Š ESTATÃSTICAS DETALHADAS
+📊 ESTATÍSTICAS DETALHADAS
 
-ðŸ—„ï¸ Banco de Dados:
-â€¢ Tamanho: {tamanho_banco_plus():.2f} MB
-â€¢ Produtos: {contar_produtos_plus():,}
-â€¢ Planilhas: {contar_planilhas_plus():,}
+🗄️ Banco de Dados:
+• Tamanho: {tamanho_banco_plus():.2f} MB
+• Produtos: {contar_produtos_plus():,}
+• Planilhas: {contar_planilhas_plus():,}
 
-âš¡ Performance:
-â€¢ Cache: 50MB
-â€¢ Memory Map: 256MB
-â€¢ Ãndices: 6 otimizados
+⚡ Performance:
+• Cache: 50MB
+• Memory Map: 256MB
+• Índices: 6 otimizados
 
-ðŸš€ Capacidade:
-â€¢ MÃ¡ximo teÃ³rico: Ilimitado
-â€¢ Recomendado: 5M+ produtos
-â€¢ Testado: 1M+ produtos
+🚀 Capacidade:
+• Máximo teórico: Ilimitado
+• Recomendado: 5M+ produtos
+• Testado: 1M+ produtos
         """
-        messagebox.showinfo("EstatÃ­sticas PLUS", stats_text)
-    
+        messagebox.showinfo("Estatísticas PLUS", stats_text)
+
     def atualizar_estatisticas_interface(self):
         total_produtos = contar_produtos_plus()
         total_planilhas = contar_planilhas_plus()
         tamanho_mb = tamanho_banco_plus()
         
-        stats_text = f"ðŸ“¦ Produtos: {total_produtos:,}  |  ðŸ“ Planilhas: {total_planilhas:,}  |  ðŸ’¾ Banco: {tamanho_mb:.1f}MB  |  âš¡ PLUS MODE"
+        stats_text = f"📦 Produtos: {total_produtos:,}  |  📁 Planilhas: {total_planilhas:,}  |  💾 Banco: {tamanho_mb:.1f}MB  |  ⚡ PLUS MODE"
         self.label_stats_plus.config(text=stats_text)
     
     def atualizar_progresso_plus(self, mensagem):
