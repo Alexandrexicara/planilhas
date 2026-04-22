@@ -23,9 +23,9 @@ start_thread.start()
 # 2. Aguarda Flask iniciar
 time.sleep(3)
 
-# 3. Abre navegador automaticamente
+# 3. Abre navegador automaticamente - direto para executar-sistema
 try:
-    webbrowser.open("http://localhost:5000")
+    webbrowser.open("http://localhost:5000/executar-sistema")
 except:
     pass
 

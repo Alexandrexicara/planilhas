@@ -38,7 +38,7 @@ start_flask()
 time.sleep(4)
 
 try:
-    webbrowser.open("http://localhost:5000")
+    webbrowser.open("http://localhost:5000/executar-sistema")
 except:
     pass
 

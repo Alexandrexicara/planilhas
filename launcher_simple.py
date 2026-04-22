@@ -8,9 +8,9 @@ os.environ['FLASK_DEBUG'] = '0'
 exe_dir = os.path.dirname(os.path.abspath(__file__))
 app_path = os.path.join(exe_dir, "app.py")
 
-# Abre navegador PRIMEIRO  (não bloqueia)
+# Abre navegador PRIMEIRO  (não bloqueia) - direto para executar-sistema
 try:
-    webbrowser.open("http://localhost:5000", new=1)
+    webbrowser.open("http://localhost:5000/executar-sistema", new=1)
 except:
     pass
 

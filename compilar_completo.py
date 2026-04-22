@@ -92,19 +92,24 @@ def main():
             print(f"❌ EXE não encontrado em: {exe_src}")
             return False
         
-        # Copiar para Desktop
+        # Copiar para Desktop (opcional - pode falhar se arquivo em uso)
         print("\n4️⃣  Copiando para Desktop...")
         print("-" * 70)
         
         exe_dest = desktop / "Planilhas.exe"
         
-        if exe_dest.exists():
-            exe_dest.unlink()
-            print(f"🗑️  Removida versão anterior")
-        
-        shutil.copy2(exe_src, exe_dest)
-        print(f"✅ Copiado com sucesso!")
-        print(f"📍 Desktop: {exe_dest}")
+        try:
+            if exe_dest.exists():
+                exe_dest.unlink()
+                print(f"🗑️  Removida versão anterior")
+            
+            shutil.copy2(exe_src, exe_dest)
+            print(f"✅ Copiado com sucesso!")
+            print(f"📍 Desktop: {exe_dest}")
+        except PermissionError:
+            print(f"⚠️  Não foi possível copiar para Desktop (arquivo em uso)")
+            print(f"📍 O EXE está disponível em: {exe_src}")
+            exe_dest = None  # Marcar como não copiado
         
         # Copiar para releases
         print("\n5️⃣  Atualizando releases...")
@@ -124,11 +129,12 @@ def main():
         print("\n" + "=" * 70)
         print("✨ SUCESSO! Compilação completa!")
         print("=" * 70)
-        print(f"📂 Desktop: {exe_dest} ({size_mb:.2f} MB)")
+        if exe_dest:
+            print(f"📂 Desktop: {exe_dest} ({size_mb:.2f} MB)")
         print(f"📂 Releases: {exe_releases}")
         print(f"\n🎯 PRÓXIMOS PASSOS:")
-        print(f"   1. Clique 2x no Planilhas.exe no Desktop")
-        print(f"   2. Abra: http://127.0.0.1:5000 no navegador")
+        print(f"   1. Execute: {exe_src}")
+        print(f"   2. O navegador abrirá automaticamente em: http://127.0.0.1:5000/executar-sistema")
         print(f"   3. Teste todas as funcionalidades")
         print(f"\n⏰ Concluído em: {datetime.now().strftime('%H:%M:%S')}")
         print("=" * 70)
