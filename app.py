@@ -1064,8 +1064,6 @@ def index():
 
 
 @app.route("/sistema")
-@_login_required
-@_paid_required
 def sistema_dashboard():
     """Dashboard web (sem abrir janelas desktop)."""
     try:
@@ -1105,8 +1103,6 @@ def download_exe_get():
     )
 
 @app.route('/executar-sistema-legado')
-@_login_required
-@_paid_required
 def executar_sistema_legado():
     """Executa funcoes dos modulos dentro do mesmo processo Flask."""
     try:
@@ -1217,15 +1213,11 @@ def executar_sistema():
 
 
 @app.route('/upload')
-@_login_required
-@_paid_required
 def upload_page():
     """Pagina de upload"""
     return render_template('upload.html', config=SISTEMA_CONFIG)
 
 @app.route('/api/upload', methods=['POST'])
-@_login_required
-@_paid_required
 def upload_excel():
     """API para upload e processamento de Excel"""
     try:
