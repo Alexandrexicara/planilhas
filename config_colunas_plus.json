@@ -1,0 +1,21 @@
+{
+    "colunas_visiveis": [
+        "CLIENTE",
+        "ARQUIVO_ORIGEM",
+        "DATA_IMPORTACAO",
+        "PICTURE",
+        "DOC",
+        "REV",
+        "ITEM",
+        "UNIT PRICE UMO",
+        "TOTAL AMOUNT UMO",
+        "DESCRICAO PORTUGUES (DESCRIPTION PORTUGUESE)",
+        "TOTAL NET WEIGHT( KG )",
+        "TOTAL GROSS WEIGHT( KG )",
+        "ADDRESS OF FACTORY",
+        "TELEPHONE",
+        "EAN13",
+        "DUN-14 INNER",
+        "DUN-14 MASTER"
+    ]
+}

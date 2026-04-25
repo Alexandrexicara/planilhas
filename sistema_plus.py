@@ -8,6 +8,7 @@ from datetime import datetime
 import csv
 import json
 from PIL import Image, ImageTk
+import ctypes
 
 # Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -144,13 +145,49 @@ def formatar_valor_celula(cell, nome_coluna=''):
     if cell is None:
         return ''
     
+    # DEBUG: Mostrar o que está recebendo para colunas de valor
+    coluna_lower = nome_coluna.lower() if nome_coluna else ''
+    is_valor_col = any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'total', 'unit'])
+    if is_valor_col and cell:
+        print(f"DEBUG formatar_valor: coluna={nome_coluna}, tipo={type(cell)}, valor={repr(cell)}")
+    
+    # Converter para string para verificar se é fórmula
+    cell_str = str(cell).strip() if cell else ''
+    
+    # Se for fórmula do Excel (começa com =), tentar extrair valor numérico
+    if cell_str.startswith('='):
+        # Tentar calcular fórmulas simples (ex: =40*6 ou =A1*B1)
+        try:
+            # Remover o = e avaliar expressão matemática simples
+            formula = cell_str[1:]  # Remove o =
+            # Para fórmulas simples como 40*6 ou 100+50
+            import re
+            # Remover letras (referências de células) e manter números e operadores
+            numeros = re.findall(r'\d+\.?\d*', formula)
+            if len(numeros) >= 2:
+                # Tentar multiplicação simples (caso mais comum: =F40*40)
+                resultado = 1
+                for n in numeros:
+                    resultado *= float(n)
+                # Verificar se é coluna de valor/preco
+                if is_valor_col:
+                    resultado_str = f"{resultado:.2f}"
+                    print(f"DEBUG formatar_valor: FÓRMULA CALCULADA {cell_str} = {resultado_str}")
+                    return resultado_str
+                return str(int(resultado)) if resultado == int(resultado) else str(resultado)
+        except Exception as e:
+            print(f"DEBUG formatar_valor: Erro ao calcular fórmula {cell_str}: {e}")
+            pass
+        # Se não conseguir calcular, retornar vazio para fórmulas
+        return ''
+    
     # Se for número (int ou float)
     if isinstance(cell, (int, float)):
         # Se for coluna de preço/valor/amount, formatar com 2 casas decimais
-        coluna_lower = nome_coluna.lower() if nome_coluna else ''
-        if any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'total', 'unit']):
-            # Formatar com 2 casas decimais, usando ponto como separador
-            return f"{cell:.2f}"
+        if is_valor_col:
+            resultado = f"{cell:.2f}"
+            print(f"DEBUG formatar_valor: NÚMERO FORMATADO {cell} -> {resultado}")
+            return resultado
         else:
             # Para outros números, converter para string sem perder precisão
             if isinstance(cell, float):
@@ -160,8 +197,28 @@ def formatar_valor_celula(cell, nome_coluna=''):
                 return str(cell)
             return str(cell)
     
+    # Se for string que parece número (ex: "240,00" ou "240.00")
+    if is_valor_col:
+        try:
+            # Tentar converter string numérica
+            # Substituir vírgula por ponto para conversão
+            cell_num = cell_str.replace(',', '.')
+            # Remover pontos de milhar se houver (ex: "1.234,56" -> "1234.56")
+            if '.' in cell_num:
+                partes = cell_num.split('.')
+                if len(partes) == 2 and len(partes[1]) <= 2:  # Provavelmente decimal
+                    pass  # já está correto
+                elif len(partes) > 2:  # Tem pontos de milhar
+                    cell_num = ''.join(partes[:-1]) + '.' + partes[-1]
+            valor = float(cell_num)
+            resultado = f"{valor:.2f}"
+            print(f"DEBUG formatar_valor: STRING CONVERTIDA {cell_str} -> {resultado}")
+            return resultado
+        except:
+            pass
+    
     # Se for string, apenas limpar
-    return str(cell).strip()
+    return cell_str
 
 def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None, duplicatas=False):
     """ImportaÃ§Ã£o ultra-rÃ¡pida com controle de duplicatas"""
@@ -199,6 +256,13 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         
         colunas_detectadas = detectar_colunas_excel_plus(cabecalhos)
         print(f"DEBUG: Colunas detectadas: {colunas_detectadas}")
+        
+        # Verificar se descricao foi detectada
+        if 'descricao' in colunas_detectadas.values():
+            print("DEBUG: ✅ Coluna 'descricao' foi detectada!")
+        else:
+            print("DEBUG: ❌ Coluna 'descricao' NAO foi detectada!")
+            print(f"DEBUG: Valores mapeados: {list(colunas_detectadas.values())}")
         
         total_importados = 0
         total_duplicatas = 0
@@ -356,7 +420,16 @@ COLUNAS_BANCO_PLUS = [
 MAPEAMENTO_SINONIMOS_PLUS = {
     'picture': ['picture', 'imagem', 'image', 'foto', 'url', 'image url', 'img'],
     'codigo': ['codigo', 'cÃ³digo', 'cod', 'code', 'item', 'sku', 'referencia', 'referÃªncia', 'id', 'produto_id'],
-    'descricao': ['descricao', 'descriÃ§Ã£o', 'produto', 'item_desc', 'name', 'descriÃ§Ã£o do produto', 'titulo', 'nome', 'descriÃ§Ã£o portugues', 'description portuguese', 'descriÃ§Ã£o portugues (description portuguese)'],
+    'descricao': [
+        'descricao', 'descricao portugues', 'descricao portugues (description portuguese)', 'description portuguese',
+        'descrição', 'descrição portugues', 'descrição portugues (description portuguese)',
+        'descricao português', 'descricao português (description portuguese)',
+        'descrição português', 'descrição português (description portuguese)',
+        'description portuguese', 'descricao (description portuguese)',
+        'produto', 'item_desc', 'name', 'descrição do produto', 'titulo', 'nome',
+        'item description', 'product description', 'product name',
+        'desc', 'descr', 'descricao_produto', 'product_desc'
+    ],
     'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
     'valor': ['valor', 'preco', 'preÃ§o', 'price', 'unitario', 'unitÃ¡rio', 'custo', 'valor_unit', 'preco_unit', 'unit price umo'],
     'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh', 'hs code', 'hs code'],
@@ -586,6 +659,13 @@ def otimizar_banco_plus():
 
 class SistemaPlanilhasPlus:
     def __init__(self):
+        # Configurar ID do aplicativo ANTES de criar a janela (para ícone na taskbar)
+        try:
+            if os.name == 'nt':  # Windows
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('planilhas.com.sistema.plus')
+        except Exception as e:
+            print(f"DEBUG: Erro ao configurar AppUserModelID: {e}")
+        
         self.janela = tk.Tk()
         self.janela.title("Sistema Planilhas PLUS - Alta Capacidade")
         self.janela.geometry("1400x800")
@@ -596,8 +676,8 @@ class SistemaPlanilhasPlus:
             icon_path = os.path.join(BASE_DIR, "icon.ico")
             if os.path.exists(icon_path):
                 self.janela.iconbitmap(icon_path)
-        except:
-            pass
+        except Exception as e:
+            print(f"DEBUG: Erro ao configurar ícone: {e}")
         
         # VariÃ¡veis
         self.termo_busca = tk.StringVar()
@@ -701,39 +781,39 @@ class SistemaPlanilhasPlus:
                 "Todas as exportaÃ§Ãµes serÃ£o salvas automaticamente aqui.")
     
     def criar_interface_plus(self):
-        # Frame superior - EstatÃ­sticas PLUS
-        frame_stats_plus = tk.Frame(self.janela, bg='#2c3e50', height=180)
-        frame_stats_plus.pack(fill='x', padx=5, pady=5)
+        # Frame superior - Estatísticas PLUS (mais estreito)
+        frame_stats_plus = tk.Frame(self.janela, bg='#2c3e50', height=90)
+        frame_stats_plus.pack(fill='x', padx=10, pady=5)
         frame_stats_plus.pack_propagate(False)
         
-        # Frame para logo e tÃ­tulo (linha superior)
+        # Frame para logo e título (linha superior)
         frame_logo_titulo = tk.Frame(frame_stats_plus, bg='#2c3e50')
-        frame_logo_titulo.pack(fill='x', pady=(10, 5))
+        frame_logo_titulo.pack(fill='x', pady=(5, 2))
         
-        # Logo no canto esquerdo
+        # Logo no canto esquerdo (menor)
         try:
             logo_path = os.path.join(BASE_DIR, "img", "Penacho laranja em fundo neutro.png")
             if os.path.exists(logo_path):
-                # Carregar e redimensionar imagem
+                # Carregar e redimensionar imagem (menor)
                 logo_image = Image.open(logo_path)
-                logo_image = logo_image.resize((80, 80), Image.Resampling.LANCZOS)
+                logo_image = logo_image.resize((50, 50), Image.Resampling.LANCZOS)
                 logo_photo = ImageTk.PhotoImage(logo_image)
                 
                 logo_label = tk.Label(frame_logo_titulo, image=logo_photo, bg='#2c3e50')
                 logo_label.image = logo_photo  # Manter referÃªncia
-                logo_label.pack(side='left', padx=(20, 15))
+                logo_label.pack(side='left', padx=(15, 10))
             else:
                 # Fallback emoji se imagem nao existir
-                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 48), bg='#2c3e50', fg='orange')
-                logo_label.pack(side='left', padx=(20, 15))
+                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 36), bg='#2c3e50', fg='orange')
+                logo_label.pack(side='left', padx=(15, 10))
         except Exception as e:
             # Fallback emoji em caso de erro
-            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 48), bg='#2c3e50', fg='orange')
-            logo_label.pack(side='left', padx=(20, 15))
+            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 36), bg='#2c3e50', fg='orange')
+            logo_label.pack(side='left', padx=(15, 10))
         
-        # TÃ­tulo ao lado do logo
-        titulo_label = tk.Label(frame_logo_titulo, text="🚀 planilhas.com PLUS", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
-        titulo_label.pack(side='left', padx=(0, 20))
+        # Título ao lado do logo (fonte menor)
+        titulo_label = tk.Label(frame_logo_titulo, text="🚀 planilhas.com PLUS", font=('Arial', 18, 'bold'), bg='#2c3e50', fg='white')
+        titulo_label.pack(side='left', padx=(0, 15))
         
         # Frame de navegação no canto direito
         frame_navegacao = tk.Frame(frame_logo_titulo, bg='#2c3e50')
@@ -746,12 +826,13 @@ class SistemaPlanilhasPlus:
                                        relief='raised', bd=2, cursor='hand2')
         btn_voltar_original.pack(pady=2)
         
-        # Estatísticas em linha separada (linha inferior)
+        # Estatísticas em linha separada (linha inferior) - mais espaço para não cortar
         frame_stats_container = tk.Frame(frame_stats_plus, bg='#2c3e50')
-        frame_stats_container.pack(fill='x', pady=(5, 15))
+        frame_stats_container.pack(fill='x', pady=(5, 8))
         
-        self.label_stats_plus = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', font=('Arial', 12, 'bold'))
-        self.label_stats_plus.pack()
+        self.label_stats_plus = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', 
+                                        font=('Arial', 11, 'bold'), height=2)
+        self.label_stats_plus.pack(fill='x', padx=10)
         
         # Frame de controles avançados
         frame_controles = tk.LabelFrame(self.janela, text="⚙️ Controles Avançados", 
@@ -784,6 +865,9 @@ class SistemaPlanilhasPlus:
         
         tk.Button(frame_import, text="⚡ Otimizar Banco", command=self.otimizar_banco_interface,
                  bg='#9b59b6', fg='white', font=('Arial', 12, 'bold'), width=20).pack(side='left', padx=5)
+        
+        tk.Button(frame_import, text="🔄 Limpar Banco", command=self.limpar_banco_plus,
+                 bg='#e67e22', fg='white', font=('Arial', 12, 'bold'), width=18).pack(side='left', padx=5)
         
         # Filtros
         tk.Label(frame_import, text="Cliente:", font=('Arial', 12), bg='#34495e', fg='white').pack(side='left', padx=5)
@@ -822,6 +906,35 @@ class SistemaPlanilhasPlus:
                                             fg='white', font=('Arial', 12))
         self.label_resultados_plus.pack(side='right', padx=5)
         
+        # CONTAINER DE COLUNAS - Compacto
+        frame_colunas = tk.LabelFrame(frame_resultados, text="📋 Colunas Visíveis", 
+                                      font=('Arial', 10, 'bold'), bg='#d5d8dc', fg='#2c3e50')
+        frame_colunas.pack(fill='x', padx=5, pady=2)
+        
+        # Frame scrollável para os checkboxes (altura reduzida)
+        canvas_colunas = tk.Canvas(frame_colunas, bg='#d5d8dc', height=50, highlightthickness=0)
+        scroll_colunas = ttk.Scrollbar(frame_colunas, orient='horizontal', command=canvas_colunas.xview)
+        frame_checks = tk.Frame(canvas_colunas, bg='#d5d8dc')
+        
+        canvas_colunas.configure(xscrollcommand=scroll_colunas.set)
+        canvas_colunas.pack(fill='x', expand=True)
+        scroll_colunas.pack(fill='x')
+        
+        canvas_colunas.create_window((0, 0), window=frame_checks, anchor='nw')
+        
+        # Atualizar scrollregion quando o conteúdo mudar
+        def atualizar_scrollregion(event=None):
+            canvas_colunas.configure(scrollregion=canvas_colunas.bbox('all'))
+        
+        frame_checks.bind('<Configure>', atualizar_scrollregion)
+        
+        # Permitir scroll com mouse
+        def on_mousewheel(event):
+            canvas_colunas.xview_scroll(int(-1*(event.delta/120)), 'units')
+        
+        canvas_colunas.bind('<MouseWheel>', on_mousewheel)
+        frame_checks.bind('<MouseWheel>', on_mousewheel)
+        
         # Tabela otimizada
         frame_tabela = tk.Frame(frame_resultados)
         frame_tabela.pack(fill='both', expand=True, padx=5, pady=5)
@@ -832,7 +945,7 @@ class SistemaPlanilhasPlus:
         for col in self.colunas_plus:
             self.tabela_plus.heading(col, text=col.replace('_', ' '))
             col_norm = col.lower()
-            if 'descricao' in col_norm:
+            if 'descricao' in col_norm or 'description' in col_norm:
                 self.tabela_plus.column(col, width=400)
             elif 'cliente' in col_norm:
                 self.tabela_plus.column(col, width=150)
@@ -841,7 +954,7 @@ class SistemaPlanilhasPlus:
             else:
                 self.tabela_plus.column(col, width=100)
         
-        # Scrollbars
+        # Scrollbars da tabela
         scroll_v = ttk.Scrollbar(frame_tabela, orient='vertical', command=self.tabela_plus.yview)
         scroll_h = ttk.Scrollbar(frame_tabela, orient='horizontal', command=self.tabela_plus.xview)
         self.tabela_plus.configure(yscrollcommand=scroll_v.set, xscrollcommand=scroll_h.set)
@@ -852,6 +965,44 @@ class SistemaPlanilhasPlus:
         
         frame_tabela.grid_rowconfigure(0, weight=1)
         frame_tabela.grid_columnconfigure(0, weight=1)
+        
+        # Variáveis para checkboxes das colunas
+        self.colunas_visiveis_plus = {}
+        self.checks_colunas_plus = {}
+        
+        # Criar checkboxes para cada coluna
+        colunas_disponiveis = list(self.colunas_plus)
+        
+        # Carregar configuração salva ou usar padrão
+        colunas_salvas = self.carregar_configuracao_colunas_plus()
+        if colunas_salvas:
+            colunas_padrao = colunas_salvas
+        else:
+            colunas_padrao = ['CLIENTE', 'ITEM', 'DESCRICAO PORTUGUES (DESCRIPTION PORTUGUESE)', 'UNIT PRICE UMO', 'TOTAL AMOUNT UMO']
+        
+        for i, col in enumerate(colunas_disponiveis):
+            var = tk.BooleanVar(value=col in colunas_padrao)
+            self.colunas_visiveis_plus[col] = var
+            
+            chk = tk.Checkbutton(frame_checks, text=col.replace('_', ' '), variable=var,
+                                bg='#d5d8dc', font=('Arial', 9), fg='#2c3e50',
+                                selectcolor='#ffffff',
+                                command=lambda c=col: self.atualizar_colunas_visiveis_plus())
+            chk.pack(side='left', padx=5, pady=2)
+            self.checks_colunas_plus[col] = chk
+        
+        # Botão para aplicar seleção
+        btn_aplicar = tk.Button(frame_colunas, text="✓ Aplicar", 
+                               command=self.atualizar_colunas_visiveis_plus,
+                               bg='#27ae60', fg='white', font=('Arial', 8), width=8)
+        btn_aplicar.pack(side='right', padx=5, pady=2)
+        
+        # Atualizar scrollregion
+        frame_checks.update_idletasks()
+        canvas_colunas.configure(scrollregion=canvas_colunas.bbox('all'))
+        
+        # Aplicar configuração inicial após criar a tabela
+        self.janela.after(100, self.atualizar_colunas_visiveis_plus)
         
         # Barra de status
         self.status_bar_plus = tk.Label(self.janela, text="Sistema PLUS - Pronto", bd=1, 
@@ -916,6 +1067,79 @@ class SistemaPlanilhasPlus:
         
         self.label_resultados_plus.config(text="0 resultados encontrados")
         self.status_bar_plus.config(text="Busca limpa")
+    
+    def limpar_banco_plus(self):
+        """Limpa todos os dados do banco PLUS"""
+        if messagebox.askyesno("Confirmar Limpeza", "Tem certeza que deseja limpar todos os dados? Esta ação não pode ser desfeita!"):
+            try:
+                cursor = get_cursor_plus()
+                cursor.execute("DELETE FROM produtos_plus")
+                get_connection_plus().commit()
+                
+                # Limpar a tabela
+                for item in self.tabela_plus.get_children():
+                    self.tabela_plus.delete(item)
+                
+                self.atualizar_estatisticas_plus()
+                self.atualizar_lista_clientes_plus()
+                self.limpar_busca_plus()
+                
+                messagebox.showinfo("Banco Limpo", "Todos os dados foram removidos com sucesso!")
+                self.status_bar_plus.config(text="Banco de dados limpo")
+                
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao limpar banco: {str(e)}")
+    
+    def atualizar_colunas_visiveis_plus(self):
+        """Atualiza quais colunas são visíveis na tabela baseado nos checkboxes"""
+        # Obter colunas selecionadas
+        colunas_selecionadas = [col for col, var in self.colunas_visiveis_plus.items() if var.get()]
+        
+        if not colunas_selecionadas:
+            messagebox.showwarning("Aviso", "Selecione pelo menos uma coluna!")
+            return
+        
+        # Ocultar/mostrar colunas na tabela
+        for col in self.colunas_plus:
+            if col in colunas_selecionadas:
+                # Restaurar largura original
+                col_norm = col.lower()
+                if 'descricao' in col_norm or 'description' in col_norm:
+                    self.tabela_plus.column(col, width=400)
+                elif 'cliente' in col_norm:
+                    self.tabela_plus.column(col, width=150)
+                elif 'arquivo' in col_norm:
+                    self.tabela_plus.column(col, width=250)
+                else:
+                    self.tabela_plus.column(col, width=100)
+            else:
+                self.tabela_plus.column(col, width=0, stretch=False, minwidth=0)
+        
+        # Salvar configuração
+        self.salvar_configuracao_colunas_plus(colunas_selecionadas)
+        
+        self.status_bar_plus.config(text=f"Colunas visíveis: {len(colunas_selecionadas)} de {len(self.colunas_plus)}")
+    
+    def salvar_configuracao_colunas_plus(self, colunas_selecionadas):
+        """Salva as colunas visíveis em arquivo JSON"""
+        arquivo_config = os.path.join(DATA_DIR, "config_colunas_plus.json")
+        try:
+            with open(arquivo_config, 'w', encoding='utf-8') as f:
+                json.dump({'colunas_visiveis': colunas_selecionadas}, f, indent=4)
+        except Exception as e:
+            print(f"DEBUG: Erro ao salvar configuração de colunas PLUS: {e}")
+    
+    def carregar_configuracao_colunas_plus(self):
+        """Carrega as colunas visíveis do arquivo JSON"""
+        arquivo_config = os.path.join(DATA_DIR, "config_colunas_plus.json")
+        if os.path.exists(arquivo_config):
+            try:
+                with open(arquivo_config, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    return config.get('colunas_visiveis', None)
+            except Exception as e:
+                print(f"DEBUG: Erro ao carregar configuração de colunas PLUS: {e}")
+        return None
     
     def importar_pasta_plus(self):
         def importar_thread():
@@ -987,7 +1211,7 @@ class SistemaPlanilhasPlus:
             messagebox.showerror("Erro", f"Erro: {str(e)}")
     
     def exportar_excel_plus(self):
-        """Exporta resultados PLUS para Excel/CSV com TODAS as colunas"""
+        """Exporta resultados PLUS para Excel/CSV - apenas planilha do filtro atual"""
         resultados = []
         for item in self.tabela_plus.get_children():
             resultados.append(self.tabela_plus.item(item)['values'])
@@ -999,81 +1223,63 @@ class SistemaPlanilhasPlus:
         try:
             pasta_destino = os.path.abspath(self.normalizar_pasta_exportacoes_plus(self.pasta_exportacoes))
             os.makedirs(pasta_destino, exist_ok=True)
-            print(f"DEBUG EXPORT PLUS: cwd={os.getcwd()}")
-            print(f"DEBUG EXPORT PLUS: base_dir={BASE_DIR}")
-            print(f"DEBUG EXPORT PLUS: pasta_configurada={self.pasta_exportacoes}")
-            print(f"DEBUG EXPORT PLUS: pasta_destino={pasta_destino}")
-            print(f"DEBUG EXPORT PLUS: linhas={len(resultados)}")
-            if is_frozen():
-                log_desktop(f"DEBUG EXPORT PLUS: pasta_destino={pasta_destino} linhas={len(resultados)}")
-            
-            # Mantem configuracao sempre corrigida
-            if pasta_destino != self.pasta_exportacoes:
-                self.pasta_exportacoes = pasta_destino
-                self.salvar_configuracao_exportacoes_plus(pasta_destino)
             
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-            # Exportar com nome da planilha importada (ARQUIVO_ORIGEM)
             colunas_completas = list(self.colunas_plus)
-            idx_cliente = colunas_completas.index('CLIENTE') if 'CLIENTE' in colunas_completas else 0
-            idx_arquivo = colunas_completas.index('ARQUIVO_ORIGEM') if 'ARQUIVO_ORIGEM' in colunas_completas else 1
-
-            grupos = {}
-            for row in resultados:
-                cliente = row[idx_cliente] if idx_cliente < len(row) else ''
-                arquivo_origem = row[idx_arquivo] if idx_arquivo < len(row) else ''
-                chave = (cliente or '', arquivo_origem or '')
-                grupos.setdefault(chave, []).append(row)
-
-            arquivos_gerados = []
-            for (cliente, arquivo_origem), rows in grupos.items():
-                base_planilha = os.path.splitext(str(arquivo_origem or 'resultado'))[0]
-                base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
-                base_cliente = sanitizar_nome_arquivo(cliente) or 'cliente'
-                # Nome começa pelo arquivo de origem (planilha) para facilitar identificacao.
-                nome_saida_base = f"{base_planilha}__{base_cliente}__{timestamp}.csv"
-                caminho = os.path.join(pasta_destino, nome_saida_base)
-
-                # Evitar sobrescrever em caso de colisao
-                if os.path.exists(caminho):
-                    n = 2
-                    while True:
-                        alt = os.path.join(pasta_destino, f"{base_planilha}__{base_cliente}__{timestamp}_{n}.csv")
-                        if not os.path.exists(alt):
-                            caminho = alt
-                            break
-                        n += 1
-
-                with open(caminho, 'w', newline='', encoding='utf-8-sig') as f:
-                    writer = csv.writer(f, delimiter=';')
-                    writer.writerow(colunas_completas)
-                    writer.writerows(rows)
-                    f.flush()
-                    os.fsync(f.fileno())
-
-                if not os.path.exists(caminho):
-                    raise FileNotFoundError(f"Arquivo nao foi criado: {caminho}")
-
-                print(f"DEBUG EXPORT PLUS: arquivo={caminho} | criado=True | tamanho={os.path.getsize(caminho)}")
-                if is_frozen():
-                    log_desktop(f"DEBUG EXPORT PLUS: arquivo={caminho} criado=True tamanho={os.path.getsize(caminho)}")
-                arquivos_gerados.append(caminho)
-
-            if len(arquivos_gerados) == 1:
-                arquivo = arquivos_gerados[0]
-                self.status_bar_plus.config(text=f"Exportado: {arquivo}")
-                messagebox.showinfo("Exportado", f"Exportado para:\n{arquivo}\n\nColunas exportadas: {len(colunas_completas)}")
-            else:
-                self.status_bar_plus.config(text=f"Exportados {len(arquivos_gerados)} arquivos")
-                messagebox.showinfo("Exportado", f"Exportados {len(arquivos_gerados)} arquivos em:\n{pasta_destino}")
+            
+            # Encontrar índices das colunas CLIENTE e ARQUIVO_ORIGEM
+            idx_cliente = -1
+            idx_arquivo = -1
+            for i, col in enumerate(colunas_completas):
+                if col.upper() == 'CLIENTE':
+                    idx_cliente = i
+                if col.upper() == 'ARQUIVO_ORIGEM':
+                    idx_arquivo = i
+            
+            # Fallback se não encontrou
+            if idx_cliente < 0:
+                idx_cliente = 0
+            if idx_arquivo < 0:
+                idx_arquivo = 1
+            
+            # Pegar a planilha atual do filtro (primeira linha dos resultados)
+            primeira_linha = resultados[0]
+            cliente_atual = primeira_linha[idx_cliente] if idx_cliente < len(primeira_linha) else ''
+            planilha_atual = primeira_linha[idx_arquivo] if idx_arquivo < len(primeira_linha) else ''
+            
+            # Exportar apenas essa planilha
+            base_planilha = os.path.splitext(str(planilha_atual or 'resultado'))[0]
+            base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
+            base_cliente = sanitizar_nome_arquivo(cliente_atual) or 'cliente'
+            nome_saida = f"{base_planilha}__{base_cliente}__{timestamp}.csv"
+            caminho = os.path.join(pasta_destino, nome_saida)
+            
+            # Evitar sobrescrever
+            if os.path.exists(caminho):
+                n = 2
+                while True:
+                    alt = os.path.join(pasta_destino, f"{base_planilha}__{base_cliente}__{timestamp}_{n}.csv")
+                    if not os.path.exists(alt):
+                        caminho = alt
+                        break
+                    n += 1
+            
+            with open(caminho, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f, delimiter=';')
+                writer.writerow(colunas_completas)
+                writer.writerows(resultados)
+                f.flush()
+                os.fsync(f.fileno())
+            
+            if not os.path.exists(caminho):
+                raise FileNotFoundError(f"Arquivo nao foi criado: {caminho}")
+            
+            self.status_bar_plus.config(text=f"Exportado: {caminho}")
+            messagebox.showinfo("Exportado", f"Planilha exportada:\n{caminho}\n\nColunas: {len(colunas_completas)} | Linhas: {len(resultados)}")
+            
         except Exception as e:
             import traceback
-            print(f"DEBUG EXPORT PLUS: ERRO ao exportar: {e}")
             traceback.print_exc()
-            if is_frozen():
-                log_desktop(f"DEBUG EXPORT PLUS: ERRO ao exportar: {repr(e)}")
-                log_desktop(traceback.format_exc())
             messagebox.showerror("Erro de Exportacao", f"Nao foi possivel exportar:\n{str(e)}")
     
     def exportar_csv_plus(self):

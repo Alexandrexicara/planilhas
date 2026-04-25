@@ -8,6 +8,7 @@ import threading
 from datetime import datetime
 import csv
 from PIL import Image, ImageTk
+import ctypes
 
 # Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -84,11 +85,8 @@ def criar_banco():
         "STATUS DA COMPRA"
     ]
     
-    # Criar 64 colunas vazias adicionais com nome _: _37, _38, _39...
-    colunas_vazias = [f"_{i}" for i in range(37, 101)]
-    
-    # Juntar todas as colunas
-    todas_colunas = colunas_excel + colunas_vazias
+    # Apenas colunas do Excel (sem colunas vazias adicionais)
+    todas_colunas = colunas_excel
     
     # Criar SQL com aspas para nomes com espaços e caracteres especiais
     colunas_sql = ', '.join([f'"{col}" TEXT DEFAULT ""' for col in todas_colunas])
@@ -114,7 +112,7 @@ def criar_banco():
     """)
     
     get_connection().commit()
-    print(f"✅ Banco criado/verificado com {len(todas_colunas)} colunas ({len(colunas_excel)} do Excel + {len(colunas_vazias)} vazias)")
+    print(f"✅ Banco criado/verificado com {len(todas_colunas)} colunas do Excel")
 
 def get_cursor():
     """Obtém cursor thread-safe"""
@@ -326,6 +324,35 @@ def formatar_valor_celula(cell, nome_coluna=''):
     if cell is None:
         return ''
     
+    # Converter para string para verificar se é fórmula
+    cell_str = str(cell).strip() if cell else ''
+    
+    # Se for fórmula do Excel (começa com =), tentar extrair valor numérico
+    if cell_str.startswith('='):
+        # Tentar calcular fórmulas simples (ex: =40*6 ou =A1*B1)
+        try:
+            # Remover o = e avaliar expressão matemática simples
+            formula = cell_str[1:]  # Remove o =
+            # Substituir referências de células por valores (aproximação)
+            # Para fórmulas simples como 40*6 ou 100+50
+            import re
+            # Remover letras (referências de células) e manter números e operadores
+            numeros = re.findall(r'\d+\.?\d*', formula)
+            if len(numeros) >= 2:
+                # Tentar multiplicação simples (caso mais comum: =F40*40)
+                resultado = 1
+                for n in numeros:
+                    resultado *= float(n)
+                # Verificar se é coluna de valor/preco
+                coluna_lower = nome_coluna.lower() if nome_coluna else ''
+                if any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'total', 'unit']):
+                    return f"{resultado:.2f}"
+                return str(int(resultado)) if resultado == int(resultado) else str(resultado)
+        except:
+            pass
+        # Se não conseguir calcular, retornar vazio para fórmulas
+        return ''
+    
     # Se for número (int ou float)
     if isinstance(cell, (int, float)):
         # Se for coluna de preço/valor/amount, formatar com 2 casas decimais
@@ -343,7 +370,7 @@ def formatar_valor_celula(cell, nome_coluna=''):
             return str(cell)
     
     # Se for string, apenas limpar
-    return str(cell).strip()
+    return cell_str
 
 def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
     """Importa uma única planilha (versão simplificada e funcional)"""
@@ -773,7 +800,7 @@ def sanitizar_nome_arquivo(nome):
     return nome
 
 def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, colunas=None):
-    """Exporta resultados da busca (versão sem pandas)"""
+    """Exporta resultados da busca (versão sem pandas) - Exporta apenas planilha do filtro atual"""
     if not resultados:
         print("DEBUG EXPORT PY: sem resultados, exportacao cancelada")
         return None
@@ -781,7 +808,6 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
     # Usar pasta configurada ou pasta padrao
     if pasta_exportacoes is None:
         pasta_exportacoes = os.path.join(DATA_DIR, "exportacoes")
-    pasta_exportacoes = os.path.abspath(normalizar_pasta_exportacoes(pasta_exportacoes))
     
     print(f"DEBUG EXPORT PY: cwd={os.getcwd()}")
     print(f"DEBUG EXPORT PY: base_dir={BASE_DIR}")
@@ -804,60 +830,59 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
         elif max_len and len(header) < max_len:
             header = header + [f"COL_{i}" for i in range(len(header) + 1, max_len + 1)]
 
-    # Exportar com nome da planilha (arquivo_origem) quando possivel
+    # Exportar apenas a planilha selecionada no filtro
     if formato in ('excel', 'csv') and header and 'ARQUIVO_ORIGEM' in header and 'CLIENTE' in header:
         idx_cliente = header.index('CLIENTE')
         idx_arquivo = header.index('ARQUIVO_ORIGEM')
-        grupos = {}
-        for row in resultados:
-            cliente = row[idx_cliente] if idx_cliente < len(row) else ''
-            arquivo_origem = row[idx_arquivo] if idx_arquivo < len(row) else ''
-            chave = (cliente or '', arquivo_origem or '')
-            grupos.setdefault(chave, []).append(row)
-
-        arquivos_gerados = []
-        for (cliente, arquivo_origem), rows in grupos.items():
-            base_planilha = os.path.splitext(str(arquivo_origem or 'resultado'))[0]
+        
+        # Pegar a planilha atual do filtro (primeira linha dos resultados)
+        if resultados:
+            primeira_linha = resultados[0]
+            cliente_atual = primeira_linha[idx_cliente] if idx_cliente < len(primeira_linha) else ''
+            planilha_atual = primeira_linha[idx_arquivo] if idx_arquivo < len(primeira_linha) else ''
+            
+            # Exportar apenas essa planilha
+            base_planilha = os.path.splitext(str(planilha_atual or 'resultado'))[0]
             base_planilha = sanitizar_nome_arquivo(base_planilha) or 'resultado'
-            base_cliente = sanitizar_nome_arquivo(cliente) or 'cliente'
-            # Nome começa pelo arquivo de origem, para o cliente identificar facilmente.
+            base_cliente = sanitizar_nome_arquivo(cliente_atual) or 'cliente'
             nome_saida = f"{base_planilha}__{base_cliente}__{timestamp}.csv"
             caminho = os.path.join(pasta_exportacoes, nome_saida)
-
+            
+            # Evitar sobrescrever
+            if os.path.exists(caminho):
+                n = 2
+                while True:
+                    alt = os.path.join(pasta_exportacoes, f"{base_planilha}__{base_cliente}__{timestamp}_{n}.csv")
+                    if not os.path.exists(alt):
+                        caminho = alt
+                        break
+                    n += 1
+            
             with open(caminho, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f, delimiter=';')
                 writer.writerow(header)
-                writer.writerows(rows)
+                writer.writerows(resultados)
                 f.flush()
                 os.fsync(f.fileno())
-
-            existe = os.path.exists(caminho)
-            tamanho = os.path.getsize(caminho) if existe else -1
-            print(f"DEBUG EXPORT PY: arquivo={caminho} | criado={existe} | tamanho={tamanho}")
+            
+            if not os.path.exists(caminho):
+                raise FileNotFoundError(f"Arquivo nao foi criado: {caminho}")
+            
+            print(f"DEBUG EXPORT PY: arquivo={caminho} | criado=True | tamanho={os.path.getsize(caminho)}")
             if is_frozen():
-                log_desktop(f"DEBUG EXPORT PY: arquivo={caminho} criado={existe} tamanho={tamanho}")
-            if existe:
-                arquivos_gerados.append(caminho)
-
-        return arquivos_gerados[0] if len(arquivos_gerados) == 1 else arquivos_gerados
+                log_desktop(f"DEBUG EXPORT PY: arquivo={caminho} criado=True tamanho={os.path.getsize(caminho)}")
+            
+            return caminho
     
-    if formato == 'excel':
-        arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")  # CSV como fallback
-        with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
-            writer.writerows(resultados)
-            f.flush()
-            os.fsync(f.fileno())
-        print(f"DEBUG EXPORT PY: arquivo={arquivo} | criado={os.path.exists(arquivo)} | tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
-        if is_frozen():
-            log_desktop(f"DEBUG EXPORT PY: arquivo={arquivo} criado={os.path.exists(arquivo)} tamanho={os.path.getsize(arquivo) if os.path.exists(arquivo) else -1}")
-        return arquivo
-    elif formato == 'csv':
+    # Fallback: exportar como CSV simples
+    if formato in ('excel', 'csv'):
         arquivo = os.path.join(pasta_exportacoes, f"resultados_busca_{timestamp}.csv")
         with open(arquivo, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
-            writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
+            if header:
+                writer.writerow(header)
+            else:
+                writer.writerow(['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM'])
             writer.writerows(resultados)
             f.flush()
             os.fsync(f.fileno())
@@ -874,6 +899,13 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
 
 class SistemaPlanilhas:
     def __init__(self):
+        # Configurar ID do aplicativo ANTES de criar a janela (para ícone na taskbar)
+        try:
+            if os.name == 'nt':  # Windows
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('planilhas.com.sistema')
+        except Exception as e:
+            print(f"DEBUG: Erro ao configurar AppUserModelID: {e}")
+        
         self.janela = tk.Tk()
         self.janela.title("Sistema Profissional de Planilhas - Busca Rápida")
         self.janela.geometry("1200x700")
@@ -884,8 +916,8 @@ class SistemaPlanilhas:
             icon_path = os.path.join(BASE_DIR, "icon.ico")
             if os.path.exists(icon_path):
                 self.janela.iconbitmap(icon_path)
-        except:
-            pass
+        except Exception as e:
+            print(f"DEBUG: Erro ao configurar ícone: {e}")
         
         # Variáveis
         self.termo_busca = tk.StringVar()
@@ -958,39 +990,39 @@ class SistemaPlanilhas:
                 "Todas as exportações serão salvas automaticamente aqui.")
     
     def criar_interface(self):
-        # Frame superior - Estatísticas
-        frame_stats = tk.Frame(self.janela, bg='#2c3e50', height=160)
+        # Frame superior - Estatísticas (mais estreito)
+        frame_stats = tk.Frame(self.janela, bg='#2c3e50', height=90)
         frame_stats.pack(fill='x', padx=5, pady=5)
         frame_stats.pack_propagate(False)
         
         # Frame para logo e título (linha superior)
         frame_logo_titulo = tk.Frame(frame_stats, bg='#2c3e50')
-        frame_logo_titulo.pack(fill='x', pady=(10, 5))
+        frame_logo_titulo.pack(fill='x', pady=(5, 2))
         
-        # Logo no canto esquerdo
+        # Logo no canto esquerdo (menor)
         try:
             logo_path = os.path.join(BASE_DIR, "img", "Penacho laranja em fundo neutro.png")
             if os.path.exists(logo_path):
-                # Carregar e redimensionar imagem
+                # Carregar e redimensionar imagem (menor)
                 logo_image = Image.open(logo_path)
-                logo_image = logo_image.resize((80, 80), Image.Resampling.LANCZOS)
+                logo_image = logo_image.resize((50, 50), Image.Resampling.LANCZOS)
                 logo_photo = ImageTk.PhotoImage(logo_image)
                 
                 logo_label = tk.Label(frame_logo_titulo, image=logo_photo, bg='#2c3e50')
                 logo_label.image = logo_photo  # Manter referência
-                logo_label.pack(side='left', padx=(20, 15))
+                logo_label.pack(side='left', padx=(15, 10))
             else:
                 # Fallback para emoji se imagem não existir
-                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 64), bg='#2c3e50', fg='white')
-                logo_label.pack(side='left', padx=(20, 15))
+                logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 36), bg='#2c3e50', fg='white')
+                logo_label.pack(side='left', padx=(15, 10))
         except Exception as e:
             # Fallback para emoji em caso de erro
-            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 64), bg='#2c3e50', fg='white')
-            logo_label.pack(side='left', padx=(20, 15))
+            logo_label = tk.Label(frame_logo_titulo, text="🪶", font=('Arial', 36), bg='#2c3e50', fg='white')
+            logo_label.pack(side='left', padx=(15, 10))
         
-        # Título ao lado do logo
-        titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com", font=('Arial', 24, 'bold'), bg='#2c3e50', fg='white')
-        titulo_label.pack(side='left', padx=(0, 20))
+        # Título ao lado do logo (fonte menor)
+        titulo_label = tk.Label(frame_logo_titulo, text="planilhas.com", font=('Arial', 18, 'bold'), bg='#2c3e50', fg='white')
+        titulo_label.pack(side='left', padx=(0, 15))
         
         # Frame de navegação no canto direito
         frame_navegacao = tk.Frame(frame_logo_titulo, bg='#2c3e50')
@@ -1003,12 +1035,13 @@ class SistemaPlanilhas:
                                    relief='raised', bd=2, cursor='hand2')
         btn_ir_para_plus.pack(pady=2)
         
-        # Estatísticas em linha separada (linha inferior)
+        # Frame de estatísticas (linha inferior do cabeçalho) - mais espaço para não cortar
         frame_stats_container = tk.Frame(frame_stats, bg='#2c3e50')
-        frame_stats_container.pack(fill='x', pady=(5, 15))
+        frame_stats_container.pack(fill='x', pady=(5, 8))
         
-        self.label_stats = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', font=('Arial', 12, 'bold'))
-        self.label_stats.pack()
+        self.label_stats = tk.Label(frame_stats_container, text="", bg='#2c3e50', fg='white', 
+                                   font=('Arial', 11, 'bold'), height=2)
+        self.label_stats.pack(fill='x', padx=10)
         
         # Frame de busca
         frame_busca = tk.LabelFrame(self.janela, text="🔍 Busca Avançada", font=('Arial', 12, 'bold'), bg='#f0f0f0')
@@ -1121,6 +1154,35 @@ class SistemaPlanilhas:
         self.label_resultados = tk.Label(frame_export, text="0 resultados encontrados", bg='#f0f0f0', font=('Arial', 10))
         self.label_resultados.pack(side='right', padx=5)
         
+        # CONTAINER DE COLUNAS - Compacto
+        frame_colunas = tk.LabelFrame(frame_resultados, text="📋 Colunas Visíveis", 
+                                      font=('Arial', 10, 'bold'), bg='#d5d8dc', fg='#2c3e50')
+        frame_colunas.pack(fill='x', padx=5, pady=2)
+        
+        # Frame scrollável para os checkboxes (altura reduzida)
+        canvas_colunas = tk.Canvas(frame_colunas, bg='#d5d8dc', height=50, highlightthickness=0)
+        scroll_colunas = ttk.Scrollbar(frame_colunas, orient='horizontal', command=canvas_colunas.xview)
+        frame_checks = tk.Frame(canvas_colunas, bg='#d5d8dc')
+        
+        canvas_colunas.configure(xscrollcommand=scroll_colunas.set)
+        canvas_colunas.pack(fill='x', expand=True)
+        scroll_colunas.pack(fill='x')
+        
+        canvas_colunas.create_window((0, 0), window=frame_checks, anchor='nw')
+        
+        # Atualizar scrollregion quando o conteúdo mudar
+        def atualizar_scrollregion(event=None):
+            canvas_colunas.configure(scrollregion=canvas_colunas.bbox('all'))
+        
+        frame_checks.bind('<Configure>', atualizar_scrollregion)
+        
+        # Permitir scroll com mouse
+        def on_mousewheel(event):
+            canvas_colunas.xview_scroll(int(-1*(event.delta/120)), 'units')
+        
+        canvas_colunas.bind('<MouseWheel>', on_mousewheel)
+        frame_checks.bind('<MouseWheel>', on_mousewheel)
+        
         # Tabela de resultados
         frame_tabela = tk.Frame(frame_resultados)
         frame_tabela.pack(fill='both', expand=True, padx=5, pady=5)
@@ -1187,6 +1249,44 @@ class SistemaPlanilhas:
         frame_tabela.grid_columnconfigure(0, weight=1)
         frame_tabela.grid_columnconfigure(1, weight=0)
         
+        # Variáveis para checkboxes das colunas
+        self.colunas_visiveis = {}
+        self.checks_colunas = {}
+        
+        # Criar checkboxes para cada coluna
+        colunas_disponiveis = list(self.colunas)
+        
+        # Carregar configuração salva ou usar padrão
+        colunas_salvas = self.carregar_configuracao_colunas()
+        if colunas_salvas:
+            colunas_padrao = colunas_salvas
+        else:
+            colunas_padrao = ['CLIENTE', 'CODIGO', 'DESCRICAO', 'IMAGEM', 'VALOR']  # Colunas padrão selecionadas
+        
+        for i, col in enumerate(colunas_disponiveis):
+            var = tk.BooleanVar(value=col in colunas_padrao)
+            self.colunas_visiveis[col] = var
+            
+            chk = tk.Checkbutton(frame_checks, text=col.replace('_', ' '), variable=var,
+                                bg='#d5d8dc', font=('Arial', 9), fg='#2c3e50',
+                                selectcolor='#ffffff',
+                                command=lambda c=col: self.atualizar_colunas_visiveis())
+            chk.pack(side='left', padx=5, pady=2)
+            self.checks_colunas[col] = chk
+        
+        # Botão para aplicar seleção
+        btn_aplicar = tk.Button(frame_colunas, text="✓ Aplicar", 
+                               command=self.atualizar_colunas_visiveis,
+                               bg='#27ae60', fg='white', font=('Arial', 8), width=8)
+        btn_aplicar.pack(side='right', padx=5, pady=2)
+        
+        # Atualizar scrollregion
+        frame_checks.update_idletasks()
+        canvas_colunas.configure(scrollregion=canvas_colunas.bbox('all'))
+        
+        # Aplicar configuração inicial após criar a tabela
+        self.janela.after(100, self.atualizar_colunas_visiveis)
+        
         # Barra de status
         self.status_bar = tk.Label(self.janela, text="Pronto", bd=1, relief='sunken', anchor='w', bg='#ecf0f1')
         self.status_bar.pack(side='bottom', fill='x')
@@ -1198,6 +1298,80 @@ class SistemaPlanilhas:
         
         stats_text = f"📦 Produtos: {total_produtos:,}  |  📁 Importações: {total_importacoes:,}  |  🕒 Última atualização: {datetime.now().strftime('%H:%M:%S')}"
         self.label_stats.config(text=stats_text)
+    
+    def atualizar_colunas_visiveis(self):
+        """Atualiza quais colunas são visíveis na tabela baseado nos checkboxes"""
+        # Obter colunas selecionadas
+        colunas_selecionadas = [col for col, var in self.colunas_visiveis.items() if var.get()]
+        
+        if not colunas_selecionadas:
+            messagebox.showwarning("Aviso", "Selecione pelo menos uma coluna!")
+            return
+        
+        # Ocultar/mostrar colunas na tabela
+        for col in self.colunas:
+            if col in colunas_selecionadas:
+                largura = self._get_largura_coluna(col)
+                minwidth = self._get_minwidth_coluna(col)
+                self.tabela.column(col, width=largura, minwidth=minwidth, stretch=True)
+            else:
+                self.tabela.column(col, width=0, stretch=False, minwidth=0)
+        
+        # Salvar configuração
+        self.salvar_configuracao_colunas(colunas_selecionadas)
+        
+        self.status_bar.config(text=f"Colunas visíveis: {len(colunas_selecionadas)} de {len(self.colunas)}")
+    
+    def _get_minwidth_coluna(self, col):
+        """Retorna o minwidth padrão para cada coluna"""
+        if 'DESCRI' in col:
+            return 300
+        elif col == 'CLIENTE':
+            return 150
+        elif col in ('ARQUIVO_ORIGEM',):
+            return 150
+        elif col in ('CODE', 'ITEM'):
+            return 100
+        elif col == 'IMAGEM':
+            return 60
+        else:
+            return 120
+    
+    def _get_largura_coluna(self, col):
+        """Retorna a largura padrão para cada coluna"""
+        if 'DESCRI' in col:
+            return 800
+        elif col == 'CLIENTE':
+            return 200
+        elif col in ('ARQUIVO_ORIGEM',):
+            return 250
+        elif col in ('CODE', 'ITEM'):
+            return 150
+        elif col == 'IMAGEM':
+            return 80
+        else:
+            return 200
+    
+    def salvar_configuracao_colunas(self, colunas_selecionadas):
+        """Salva as colunas visíveis em arquivo JSON"""
+        arquivo_config = os.path.join(DATA_DIR, "config_colunas.json")
+        try:
+            with open(arquivo_config, 'w', encoding='utf-8') as f:
+                json.dump({'colunas_visiveis': colunas_selecionadas}, f, indent=4)
+        except Exception as e:
+            print(f"DEBUG: Erro ao salvar configuração de colunas: {e}")
+    
+    def carregar_configuracao_colunas(self):
+        """Carrega as colunas visíveis do arquivo JSON"""
+        arquivo_config = os.path.join(DATA_DIR, "config_colunas.json")
+        if os.path.exists(arquivo_config):
+            try:
+                with open(arquivo_config, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    return config.get('colunas_visiveis', None)
+            except Exception as e:
+                print(f"DEBUG: Erro ao carregar configuração de colunas: {e}")
+        return None
     
     def atualizar_lista_clientes(self):
         """Atualiza a lista de clientes no combobox"""
@@ -1312,7 +1486,7 @@ class SistemaPlanilhas:
                 messagebox.showerror("Erro", f"Erro ao limpar banco: {str(e)}")
     
     def exportar_excel(self):
-        """Exporta resultados para Excel"""
+        """Exporta resultados para Excel - apenas planilha selecionada no filtro"""
         resultados = []
         for item in self.tabela.get_children():
             resultados.append(self.tabela.item(item)['values'])
@@ -1324,6 +1498,7 @@ class SistemaPlanilhas:
         print(f"DEBUG EXPORT PY UI: inicio exportar_excel | linhas={len(resultados)}")
         print(f"DEBUG EXPORT PY UI: pasta_configurada={self.pasta_exportacoes}")
         arquivo = exportar_resultados(resultados, 'excel', self.pasta_exportacoes, colunas=list(self.colunas))
+        
         if arquivo:
             if isinstance(arquivo, list):
                 messagebox.showinfo("Exportação Concluída", f"Exportados {len(arquivo)} arquivos em:\n{self.pasta_exportacoes}")

@@ -1121,9 +1121,9 @@ def executar_sistema_legado():
 def executar_sistema():
     """Abre as janelas do sistema original e/ou PLUS a partir do Flask."""
     try:
-        # Executa diretamente o sistema Plus quando não há target especificado
+        # Executa o sistema Original primeiro quando não há target especificado
         if not request.args.get("target"):
-            alvo = 'plus'
+            alvo = 'original'
         else:
             alvo = request.args.get('target', 'both').lower()
         scripts_por_alvo = {
