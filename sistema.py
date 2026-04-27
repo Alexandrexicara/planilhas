@@ -357,7 +357,11 @@ def formatar_valor_celula(cell, nome_coluna=''):
     if isinstance(cell, (int, float)):
         # Se for coluna de preço/valor/amount, formatar com 2 casas decimais
         coluna_lower = nome_coluna.lower() if nome_coluna else ''
-        if any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'total', 'unit']):
+        # Verificar se é coluna de valor (mas não CTNS/QTY que são quantidades)
+        is_valor = any(palavra in coluna_lower for palavra in ['price', 'amount', 'valor', 'preco', 'preço', 'unit'])
+        is_quantidade = any(palavra in coluna_lower for palavra in ['ctns', 'qty', 'quantity', 'cartons', 'caixas'])
+        
+        if is_valor and not is_quantidade:
             # Formatar com 2 casas decimais, usando ponto como separador
             return f"{cell:.2f}"
         else:
@@ -498,6 +502,35 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
                         valores[col_name] = picture_valor or nome_imagem_principal
                     else:
                         valores[col_name] = formatar_valor_celula(cell, col_name)
+            
+            # Calcular TOTAL AMOUNT UMO = QUANTITY × UNIT PRICE UMO
+            if not valores.get('TOTAL AMOUNT UMO') and valores.get('QUANTITY') and valores.get('UNIT PRICE UMO'):
+                try:
+                    # Converter valores do formato brasileiro (1.200,00 → 1200.00)
+                    def parse_br(valor):
+                        if not valor:
+                            return 0.0
+                        valor_str = str(valor).strip()
+                        # Remove separador de milhar (ponto) e troca vírgula por ponto decimal
+                        valor_str = valor_str.replace('.', '').replace(',', '.')
+                        return float(valor_str)
+                    
+                    quantity = parse_br(valores['QUANTITY'])
+                    unit_price = parse_br(valores['UNIT PRICE UMO'])
+                    total_amount = quantity * unit_price
+                    
+                    # Formatar resultado no padrão brasileiro (ex: 228,00)
+                    if total_amount == int(total_amount):
+                        valores['TOTAL AMOUNT UMO'] = f"{int(total_amount)},00"
+                    else:
+                        # Duas casas decimais, troca ponto por vírgula
+                        valores['TOTAL AMOUNT UMO'] = f"{total_amount:.2f}".replace('.', ',')
+                    
+                    if total_importados < 3:
+                        print(f"DEBUG: Calculo: {valores['QUANTITY']} × {valores['UNIT PRICE UMO']} = {valores['TOTAL AMOUNT UMO']}")
+                except Exception as e:
+                    if total_importados < 3:
+                        print(f"DEBUG: Erro no cálculo: {e}")
             
             # Adicionar campos fixos
             valores['cliente'] = cliente
@@ -825,7 +858,14 @@ def exportar_resultados(resultados, formato='excel', pasta_exportacoes=None, col
     if colunas:
         header = [str(c) for c in colunas]
         max_len = max((len(r) for r in resultados), default=0)
+        
+        # DEBUG: Mostrar informações das colunas
+        print(f"DEBUG EXPORT: header={header[:10]}... (total: {len(header)})")
+        print(f"DEBUG EXPORT: max_len dos resultados={max_len}")
+        print(f"DEBUG EXPORT: primeira linha={resultados[0] if resultados else 'vazio'}")
+        
         if max_len and len(header) > max_len:
+            print(f"DEBUG EXPORT: Header truncado de {len(header)} para {max_len}")
             header = header[:max_len]
         elif max_len and len(header) < max_len:
             header = header + [f"COL_{i}" for i in range(len(header) + 1, max_len + 1)]
@@ -1398,10 +1438,45 @@ class SistemaPlanilhas:
         try:
             resultados = buscar_produtos(termo, cliente)
             
+            # Calcular total da coluna TOTAL CTNS
+            total_ctns = 0
+            idx_total_ctns = None
+            colunas_list = list(self.colunas)
+            if 'TOTAL CTNS' in colunas_list:
+                idx_total_ctns = colunas_list.index('TOTAL CTNS')
+            
+            # Calcular total da coluna TOTAL GROSS WEIGHT (KG)
+            total_gross = 0.0
+            idx_gross = None
+            if 'TOTAL GROSS WEIGHT( kg )' in colunas_list:
+                idx_gross = colunas_list.index('TOTAL GROSS WEIGHT( kg )')
+            
             for resultado in resultados:
                 self.tabela.insert('', 'end', values=resultado)
+                # Somar CTNS se a coluna existir
+                if idx_total_ctns is not None and idx_total_ctns < len(resultado):
+                    try:
+                        val = str(resultado[idx_total_ctns]).replace('.', '').replace(',', '.')
+                        if val:
+                            total_ctns += float(val)
+                    except:
+                        pass
+                # Somar GROSS WEIGHT se a coluna existir
+                if idx_gross is not None and idx_gross < len(resultado):
+                    try:
+                        val = str(resultado[idx_gross]).replace('.', '').replace(',', '.')
+                        if val:
+                            total_gross += float(val)
+                    except:
+                        pass
             
-            self.label_resultados.config(text=f"{len(resultados)} resultados encontrados")
+            # Mostrar resultados + totais
+            texto_resultado = f"{len(resultados)} resultados"
+            if total_ctns > 0:
+                texto_resultado += f" | Total CTNS: {int(total_ctns)}"
+            if total_gross > 0:
+                texto_resultado += f" | Total Gross: {total_gross:.2f}"
+            self.label_resultados.config(text=texto_resultado)
             self.status_bar.config(text=f"Busca concluída: {len(resultados)} resultados")
             
         except Exception as e:

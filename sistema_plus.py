@@ -183,8 +183,11 @@ def formatar_valor_celula(cell, nome_coluna=''):
     
     # Se for número (int ou float)
     if isinstance(cell, (int, float)):
-        # Se for coluna de preço/valor/amount, formatar com 2 casas decimais
-        if is_valor_col:
+        # Verificar se é quantidade (CTNS/QTY) - não formatar como valor
+        is_quantidade = any(palavra in coluna_lower for palavra in ['ctns', 'qty', 'quantity', 'cartons', 'caixas'])
+        
+        # Se for coluna de preço/valor/amount, formatar com 2 casas decimais (mas não para quantidades)
+        if is_valor_col and not is_quantidade:
             resultado = f"{cell:.2f}"
             print(f"DEBUG formatar_valor: NÚMERO FORMATADO {cell} -> {resultado}")
             return resultado
@@ -264,6 +267,12 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             print("DEBUG: ❌ Coluna 'descricao' NAO foi detectada!")
             print(f"DEBUG: Valores mapeados: {list(colunas_detectadas.values())}")
         
+        # Verificar se peso foi detectado
+        if 'peso' in colunas_detectadas.values():
+            print("DEBUG: ✅ Coluna 'peso' foi detectada!")
+        else:
+            print("DEBUG: ❌ Coluna 'peso' NAO foi detectada!")
+        
         total_importados = 0
         total_duplicatas = 0
         data_atual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -290,6 +299,35 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             # Fallback: se PICTURE nao foi mapeada, usa o valor da primeira coluna
             if not dados.get('picture') and len(row) > 0 and row[0]:
                 dados['picture'] = str(row[0]).strip()
+            
+            # Calcular TOTAL AMOUNT UMO = QUANTITY × UNIT PRICE UMO
+            if not dados.get('total_amount') and dados.get('quantity') and dados.get('valor'):
+                try:
+                    # Converter valores do formato brasileiro (1.200,00 → 1200.00)
+                    def parse_br(valor):
+                        if not valor:
+                            return 0.0
+                        valor_str = str(valor).strip()
+                        # Remove separador de milhar (ponto) e troca vírgula por ponto decimal
+                        valor_str = valor_str.replace('.', '').replace(',', '.')
+                        return float(valor_str)
+                    
+                    quantity = parse_br(dados['quantity'])
+                    unit_price = parse_br(dados['valor'])
+                    total_amount = quantity * unit_price
+                    
+                    # Formatar resultado no padrão brasileiro (ex: 228,00)
+                    if total_amount == int(total_amount):
+                        dados['total_amount'] = f"{int(total_amount)},00"
+                    else:
+                        # Duas casas decimais, troca ponto por vírgula
+                        dados['total_amount'] = f"{total_amount:.2f}".replace('.', ',')
+                    
+                    if total_importados < 3:
+                        print(f"DEBUG: Calculo: {dados['quantity']} × {dados['valor']} = {dados['total_amount']}")
+                except Exception as e:
+                    if total_importados < 3:
+                        print(f"DEBUG: Erro no cálculo: {e}")
             
             # Adicionar campos fixos
             dados['cliente'] = cliente
@@ -430,7 +468,7 @@ MAPEAMENTO_SINONIMOS_PLUS = {
         'item description', 'product description', 'product name',
         'desc', 'descr', 'descricao_produto', 'product_desc'
     ],
-    'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr'],
+    'peso': ['peso', 'weight', 'kg', 'quilos', 'peso_bruto', 'peso_liquido', 'massa', 'gr', 'total net weight( kg )', 'total net weight'],
     'valor': ['valor', 'preco', 'preÃ§o', 'price', 'unitario', 'unitÃ¡rio', 'custo', 'valor_unit', 'preco_unit', 'unit price umo'],
     'ncm': ['ncm', 'nomenclatura', 'codigo_ncm', 'ncm_sh', 'codigo_ncm_sh', 'nsh', 'codigo_nsh', 'hs code', 'hs code'],
     'doc': ['doc', 'documento'],
@@ -1047,10 +1085,46 @@ class SistemaPlanilhasPlus:
                 planilha_filtro=planilha,
                 limit=10000
             )
+            
+            # Calcular total da coluna TOTAL CTNS
+            total_ctns = 0
+            idx_total_ctns = None
+            colunas_list = list(self.colunas_plus)
+            if 'TOTAL CTNS' in colunas_list:
+                idx_total_ctns = colunas_list.index('TOTAL CTNS')
+            
+            # Calcular total da coluna TOTAL GROSS WEIGHT (KG)
+            total_gross = 0.0
+            idx_gross = None
+            if 'TOTAL GROSS WEIGHT( KG )' in colunas_list:
+                idx_gross = colunas_list.index('TOTAL GROSS WEIGHT( KG )')
+            
             for resultado in resultados:
                 self.tabela_plus.insert('', 'end', values=resultado)
-
-            self.label_resultados_plus.config(text=f"{len(resultados):,} resultados encontrados")
+                # Somar CTNS se a coluna existir
+                if idx_total_ctns is not None and idx_total_ctns < len(resultado):
+                    try:
+                        val = str(resultado[idx_total_ctns]).replace('.', '').replace(',', '.')
+                        if val:
+                            total_ctns += float(val)
+                    except:
+                        pass
+                # Somar GROSS WEIGHT se a coluna existir
+                if idx_gross is not None and idx_gross < len(resultado):
+                    try:
+                        val = str(resultado[idx_gross]).replace('.', '').replace(',', '.')
+                        if val:
+                            total_gross += float(val)
+                    except:
+                        pass
+            
+            # Mostrar resultados + totais
+            texto_resultado = f"{len(resultados):,} resultados"
+            if total_ctns > 0:
+                texto_resultado += f" | Total CTNS: {int(total_ctns)}"
+            if total_gross > 0:
+                texto_resultado += f" | Total Gross: {total_gross:.2f}"
+            self.label_resultados_plus.config(text=texto_resultado)
             self.status_bar_plus.config(
                 text=f"Busca PLUS concluida: {len(resultados):,} resultados | Cliente: {cliente} | Planilha: {planilha}"
             )
