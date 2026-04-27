@@ -5,7 +5,7 @@ import sys
 
 def build_executable_light():
     """
-    Build em modo leve (--onedir), util para maquinas com pouca memoria.
+    Build em modo onefile (--onefile), gera um unico arquivo EXE.
     """
     print("Gerando executavel em modo leve...")
 
@@ -28,7 +28,7 @@ def build_executable_light():
         sys.executable,
         "-m",
         "PyInstaller",
-        "--onedir",
+        "--onefile",
         "--windowed",
         "--name=Planilhas",
         "--add-data=templates;templates",
@@ -58,7 +58,7 @@ def build_executable_light():
 
     try:
         subprocess.run(cmd, check=True)
-        exe_path = os.path.join("dist", "Planilhas", "Planilhas.exe")
+        exe_path = os.path.join("dist", "Planilhas.exe")
         if os.path.exists(exe_path):
             print(f"Executavel gerado: {exe_path}")
         return True
