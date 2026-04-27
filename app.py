@@ -1376,10 +1376,56 @@ def executar_app():
         raise
 
 
+def copiar_exe_para_desktop():
+    """Copia o executavel para o Desktop do usuario se estiver rodando como EXE empacotado."""
+    try:
+        running_frozen = bool(getattr(sys, 'frozen', False))
+        if not running_frozen:
+            return  # Nao esta rodando como EXE empacotado
+        
+        # Caminho do executavel atual
+        if hasattr(sys, '_MEIPASS'):
+            # PyInstaller onefile - o EXE esta em sys.executable
+            exe_atual = sys.executable
+        else:
+            exe_atual = sys.executable
+        
+        # Caminho do Desktop
+        desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
+        if not os.path.exists(desktop_path):
+            return
+        
+        # Nome do arquivo
+        exe_name = os.path.basename(exe_atual)
+        if not exe_name.endswith('.exe'):
+            exe_name = 'Planilhas.exe'
+        
+        destino = os.path.join(desktop_path, exe_name)
+        
+        # Se ja existe no Desktop e eh o mesmo arquivo, nao copiar
+        if os.path.exists(destino):
+            if os.path.samefile(exe_atual, destino):
+                return  # Ja esta rodando do Desktop
+            # Verificar se o arquivo do Desktop eh mais recente
+            if os.path.getmtime(destino) >= os.path.getmtime(exe_atual):
+                return  # Desktop tem versao igual ou mais recente
+        
+        # Copiar para o Desktop
+        import shutil
+        shutil.copy2(exe_atual, destino)
+        print(f"✅ EXE copiado para Desktop: {destino}")
+        
+    except Exception as e:
+        print(f"DEBUG: Erro ao copiar para Desktop: {e}")
+
+
 if __name__ == '__main__':
     try:
         print("=== INICIALIZANDO APP PRINCIPAL ===")
         print("IS_RENDER:", IS_RENDER)
+        
+        # Copiar EXE para Desktop se estiver rodando como executavel empacotado
+        copiar_exe_para_desktop()
         
         # Inicializar banco de acesso no Render
         if IS_RENDER:
