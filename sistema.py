@@ -45,9 +45,10 @@ def criar_banco():
     """Cria o banco de dados SQLite com 36 colunas exatas do Excel + 64 colunas vazias"""
     cursor = get_cursor()
     
-    # Colunas exatas do Excel (36 colunas)
+    # Colunas exatas do Excel (37 colunas)
     colunas_excel = [
         "PICTURE",
+        "LINK",
         "DOC",
         "REV",
         "ITEM",
@@ -430,6 +431,11 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
             ]:
                 mapeamento[i] = 'PICTURE'
                 print(f"✅ Coluna {i}: '{cab}' -> MAPEADA (sinônimo: 'PICTURE')")
+            elif str(cab).strip().lower() in [
+                'link', 'url link', 'link url', 'imagem link', 'foto link'
+            ]:
+                mapeamento[i] = 'LINK'
+                print(f"✅ Coluna {i}: '{cab}' -> MAPEADA (sinônimo: 'LINK')")
             else:
                 # Tentar encontrar com normalização (fallback)
                 nome_norm = normalizar_nome_coluna(cab)

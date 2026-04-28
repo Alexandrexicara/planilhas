@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📸 Upload de Imagens - Link para Excel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+        .upload-area:hover {
+            background: #e9ecef;
+            border-color: #764ba2;
+        }
+        .upload-area.dragover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        .upload-icon { font-size: 60px; margin-bottom: 15px; }
+        .upload-text { color: #666; font-size: 16px; margin-bottom: 10px; }
+        .upload-hint { color: #999; font-size: 12px; }
+        #fileInput { display: none; }
+        .preview-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .preview-container.active { display: block; }
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .link-container {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .link-label {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .link-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        #linkInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-success:hover { background: #218838; }
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+        .progress-container.active { display: block; }
+        .progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+        .excel-tip {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #333;
+        }
+        .excel-tip code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        .status-message {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            display: none;
+        }
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Upload de Imagens</h1>
+        <p class="subtitle">Faça upload e obtenha um link direto para usar no Excel</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <p class="upload-text">Clique ou arraste uma imagem aqui</p>
+            <p class="upload-hint">Suporta: JPG, PNG, GIF, WEBP (máx. 10MB)</p>
+        </div>
+        
+        <input type="file" id="fileInput" accept="image/*">
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="progress-text" id="progressText">Enviando...</p>
+        </div>
+        
+        <div class="preview-container" id="previewContainer">
+            <img id="previewImage" class="preview-image" alt="Preview">
+            
+            <div class="link-container">
+                <label class="link-label">🔗 Link Direto da Imagem:</label>
+                <div class="link-box">
+                    <input type="text" id="linkInput" readonly placeholder="Link aparecerá aqui...">
+                    <button class="btn btn-success" id="copyBtn">📋 Copiar</button>
+                </div>
+                <button class="btn btn-primary" id="uploadAnother">📤 Enviar Outra</button>
+            </div>
+            
+            <div class="excel-tip">
+                💡 <strong>Dica:</strong> No Excel, use a fórmula:<br>
+                <code>=IMAGEM("URL_DA_IMAGEM")</code><br>
+                Ou simplesmente cole o link em uma célula e use:<br>
+                <code>=IMAGEM(A1)</code> (onde A1 contém o link)
+            </div>
+        </div>
+        
+        <div class="status-message" id="statusMessage"></div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewImage = document.getElementById('previewImage');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const linkInput = document.getElementById('linkInput');
+        const copyBtn = document.getElementById('copyBtn');
+        const uploadAnother = document.getElementById('uploadAnother');
+        const statusMessage = document.getElementById('statusMessage');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showStatus('❌ Por favor, selecione apenas imagens!', 'error');
+                return;
+            }
+            if (file.size > 10 * 1024 * 1024) {
+                showStatus('❌ Imagem muito grande! Máximo 10MB.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewContainer.classList.add('active');
+                uploadArea.style.display = 'none';
+                uploadFile(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function uploadFile(file) {
+            progressContainer.classList.add('active');
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Enviando...';
+
+            const formData = new FormData();
+            formData.append('imagem', file);
+
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    progressFill.style.width = percentComplete + '%';
+                    progressText.textContent = `Enviando... ${Math.round(percentComplete)}%`;
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                progressContainer.classList.remove('active');
+                
+                if (xhr.status === 200) {
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.success) {
+                        linkInput.value = response.url;
+                        showStatus('✅ Upload concluído! Link copiado para a área de transferência.', 'success');
+                        copyToClipboard(response.url);
+                    } else {
+                        showStatus('❌ Erro no upload: ' + response.message, 'error');
+                    }
+                } else {
+                    showStatus('❌ Erro ao enviar imagem!', 'error');
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                progressContainer.classList.remove('active');
+                showStatus('❌ Erro de conexão!', 'error');
+            });
+
+            xhr.open('POST', '/upload-imagem');
+            xhr.send(formData);
+        }
+
+        copyBtn.addEventListener('click', () => {
+            copyToClipboard(linkInput.value);
+        });
+
+        uploadAnother.addEventListener('click', () => {
+            previewContainer.classList.remove('active');
+            uploadArea.style.display = 'block';
+            fileInput.value = '';
+            linkInput.value = '';
+            hideStatus();
+        });
+
+        function copyToClipboard(text) {
+            // Tentar API moderna primeiro
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    mostrarCopiado();
+                }).catch(() => {
+                    // Fallback para modo não seguro (HTTP)
+                    fallbackCopy(text);
+                });
+            } else {
+                // Fallback para modo não seguro (HTTP)
+                fallbackCopy(text);
+            }
+        }
+        
+        function fallbackCopy(text) {
+            // Criar elemento temporário
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                document.execCommand('copy');
+                mostrarCopiado();
+            } catch (err) {
+                console.error('Erro ao copiar:', err);
+                alert('Não foi possível copiar automaticamente. Selecione o texto manualmente e pressione Ctrl+C');
+                linkInput.select();
+            }
+            
+            document.body.removeChild(textArea);
+        }
+        
+        function mostrarCopiado() {
+            copyBtn.textContent = '✅ Copiado!';
+            setTimeout(() => {
+                copyBtn.textContent = '📋 Copiar';
+            }, 2000);
+        }
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message ' + type;
+            statusMessage.style.display = 'block';
+        }
+
+        function hideStatus() {
+            statusMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>

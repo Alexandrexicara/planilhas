@@ -61,13 +61,14 @@ def criar_banco_plus():
     """Cria o banco de dados PLUS com todas as tabelas e Ã­ndices"""
     cursor = get_cursor_plus()
     
-    # Tabela principal com TODAS as 39 colunas e Ã­ndices otimizados
+    # Tabela principal com TODAS as 40 colunas e Ã­ndices otimizados
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS produtos_plus(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         cliente TEXT COLLATE NOCASE,
         arquivo_origem TEXT,
         picture TEXT,
+        link TEXT,
         codigo TEXT COLLATE NOCASE,
         descricao TEXT COLLATE NOCASE,
         peso TEXT,
@@ -108,12 +109,15 @@ def criar_banco_plus():
     )
     """)
     
-    # Migracao automatica para bancos antigos sem a coluna fisica picture
+    # Migracao automatica para bancos antigos sem as colunas fisicas
     cursor.execute("PRAGMA table_info(produtos_plus)")
     colunas_existentes = {row[1] for row in cursor.fetchall()}
     if 'picture' not in colunas_existentes:
         cursor.execute("ALTER TABLE produtos_plus ADD COLUMN picture TEXT DEFAULT ''")
         print("DEBUG: Coluna fisica 'picture' adicionada em produtos_plus")
+    if 'link' not in colunas_existentes:
+        cursor.execute("ALTER TABLE produtos_plus ADD COLUMN link TEXT DEFAULT ''")
+        print("DEBUG: Coluna fisica 'link' adicionada em produtos_plus")
     
     # Ãndices compostos para busca ultra-rÃ¡pida
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_cliente_plus ON produtos_plus(cliente)")
@@ -354,6 +358,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 dados['cliente'],
                 dados['arquivo_origem'],
                 dados['picture'],
+                dados['link'],
                 dados['codigo'],
                 dados['descricao'],
                 dados['peso'],
@@ -397,13 +402,13 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             if len(dados_batch) >= batch_size:
                 get_cursor_plus().executemany("""
                     INSERT INTO produtos_plus
-                    (cliente, arquivo_origem, picture, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                    (cliente, arquivo_origem, picture, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
                      quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                      total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                      net_weight_ctn, gross_weight_ctn, factory, address, telephone,
                      ean13, dun14_inner, dun14_master, length, width, height, cbm,
                      prc_kg, li, obs, status, data_importacao, hash_dados)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, dados_batch)
                 get_connection_plus().commit()
                 total_importados += len(dados_batch)
@@ -416,13 +421,13 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         if dados_batch:
             get_cursor_plus().executemany("""
                 INSERT INTO produtos_plus
-                (cliente, arquivo_origem, picture, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                (cliente, arquivo_origem, picture, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
                  quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                  total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                  net_weight_ctn, gross_weight_ctn, factory, address, telephone,
                  ean13, dun14_inner, dun14_master, length, width, height, cbm,
                  prc_kg, li, obs, status, data_importacao, hash_dados)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, dados_batch)
             get_connection_plus().commit()
             total_importados += len(dados_batch)
@@ -446,7 +451,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
 
 # Definir colunas fixas do sistema PLUS (mesma ordem do banco)
 COLUNAS_BANCO_PLUS = [
-    'cliente', 'arquivo_origem', 'picture', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
+    'cliente', 'arquivo_origem', 'picture', 'link', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
     'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount', 'marca',
     'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
     'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
@@ -457,6 +462,7 @@ COLUNAS_BANCO_PLUS = [
 # Mapeamento de sinÃ´nimos para colunas PLUS
 MAPEAMENTO_SINONIMOS_PLUS = {
     'picture': ['picture', 'imagem', 'image', 'foto', 'url', 'image url', 'img'],
+    'link': ['link', 'url', 'link imagem', 'url imagem', 'imagem url', 'image link', 'foto link', 'link foto'],
     'codigo': ['codigo', 'cÃ³digo', 'cod', 'code', 'item', 'sku', 'referencia', 'referÃªncia', 'id', 'produto_id'],
     'descricao': [
         'descricao', 'descricao portugues', 'descricao portugues (description portuguese)', 'description portuguese',
@@ -542,7 +548,7 @@ def detectar_colunas_excel_plus(cabecalhos):
     return mapeamento
 
 COLUNAS_PLUS_BUSCA = [
-    'cliente', 'arquivo_origem', 'picture', 'data_importacao', 'codigo', 'descricao', 'peso',
+    'cliente', 'arquivo_origem', 'picture', 'link', 'data_importacao', 'codigo', 'descricao', 'peso',
     'valor', 'ncm', 'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount',
     'marca', 'inner_qty', 'master_qty', 'total_ctns', 'gross_weight',
     'net_weight_pc', 'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn',
@@ -556,6 +562,7 @@ COLUNAS_PLUS_EXIBICAO = [
     ('arquivo_origem', 'ARQUIVO_ORIGEM'),
     ('data_importacao', 'DATA_IMPORTACAO'),
     ('picture', 'PICTURE'),
+    ('link', 'LINK'),
     ('doc', 'DOC'),
     ('rev', 'REV'),
     ('codigo', 'ITEM'),

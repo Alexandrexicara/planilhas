@@ -57,6 +57,17 @@ def connect():
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS imagens_upload (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                filename TEXT NOT NULL,
+                nome_original TEXT NOT NULL,
+                url TEXT NOT NULL,
+                tipo TEXT,
+                tamanho INTEGER,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
         conn.close()
     
@@ -115,6 +126,21 @@ def init_db():
             used_by_user_id INTEGER,
             FOREIGN KEY (organization_id) REFERENCES organizations (id),
             FOREIGN KEY (used_by_user_id) REFERENCES users (id)
+        )
+        """
+    )
+
+    # Tabela para arquivamento de imagens
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS imagens_upload (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            nome_original TEXT NOT NULL,
+            url TEXT NOT NULL,
+            tipo TEXT,
+            tamanho INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
@@ -415,6 +441,63 @@ def list_invites(organization_id, limit=50):
             LIMIT ?
             """,
             (int(organization_id), int(limit)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def salvar_imagem(filename, nome_original, url, tipo=None, tamanho=None):
+    """Salva registro de imagem enviada no banco."""
+    conn = connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO imagens_upload (filename, nome_original, url, tipo, tamanho, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (filename, nome_original, url, tipo, tamanho, _utcnow_str()),
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao salvar imagem no banco: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def listar_imagens(limit=100, offset=0):
+    """Lista imagens arquivadas ordenadas por data (mais recentes primeiro)."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, filename, nome_original, url, tipo, tamanho, created_at
+            FROM imagens_upload
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            (int(limit), int(offset)),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def buscar_imagens(termo, limit=50):
+    """Busca imagens por nome original."""
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, filename, nome_original, url, tipo, tamanho, created_at
+            FROM imagens_upload
+            WHERE nome_original LIKE ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (f"%{termo}%", int(limit)),
         ).fetchall()
         return [dict(r) for r in rows]
     finally:

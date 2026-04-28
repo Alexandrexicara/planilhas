@@ -17,7 +17,7 @@ import json
 from datetime import datetime
 import socket
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, session, g
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, send_from_directory, session, g
 
 print("=== APP INICIANDO ===")
 print("Python version:", sys.version)
@@ -1338,6 +1338,14 @@ def executar_app():
     auto_open_browser = running_desktop
 
     log_desktop(f"Startup: frozen={running_frozen} cwd={os.getcwd()} base_dir={BASE_DIR} host={host} port={port}")
+    
+    # Mostrar URLs importantes no console
+    print(f"\n{'='*60}")
+    print(f"🚀 SERVIDOR RODANDO!")
+    print(f"{'='*60}")
+    print(f"📸 Upload de Imagens: http://127.0.0.1:{port}/upload-imagens")
+    print(f"🏠 Página Inicial: http://127.0.0.1:{port}/")
+    print(f"{'='*60}\n")
 
     if auto_open_browser and host == '127.0.0.1':
         abrir_navegador_quando_pronto(f"http://127.0.0.1:{port}", host, port)
@@ -1419,6 +1427,109 @@ def copiar_exe_para_desktop():
         print(f"DEBUG: Erro ao copiar para Desktop: {e}")
 
 
+# ============================
+# ROTAS DE UPLOAD DE IMAGENS (MOVIDAS PARA ANTES DO if __name__)
+# ============================
+
+@app.route('/upload-imagens')
+def upload_imagens_page():
+    """Pagina de upload de imagens para gerar links diretos."""
+    return render_template('upload_imagens_link.html')
+
+
+@app.route('/upload-imagem', methods=['POST'])
+def upload_imagem():
+    """Recebe upload de imagem e retorna URL publica."""
+    try:
+        if 'imagem' not in request.files:
+            return jsonify({'success': False, 'message': 'Nenhuma imagem enviada'}), 400
+        
+        file = request.files['imagem']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'Nenhum arquivo selecionado'}), 400
+        
+        # Validar extensao
+        extensao = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+        extensoes_permitidas = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}
+        
+        if extensao not in extensoes_permitidas:
+            return jsonify({'success': False, 'message': 'Extensao nao permitida. Use: PNG, JPG, JPEG, GIF, WEBP, BMP'}), 400
+        
+        # Criar pasta uploads se nao existir
+        pasta_uploads = os.path.join(BASE_DIR, 'uploads')
+        if not os.path.exists(pasta_uploads):
+            os.makedirs(pasta_uploads)
+        
+        # Gerar nome unico
+        timestamp = int(time.time())
+        nome_seguro = f"{timestamp}_{file.filename}"
+        caminho_arquivo = os.path.join(pasta_uploads, nome_seguro)
+        
+        # Salvar arquivo
+        file.save(caminho_arquivo)
+        
+        # Gerar URL publica
+        url_imagem = f"/uploads/{nome_seguro}"
+        
+        # Usar URL base correta (Render ou localhost)
+        if IS_RENDER:
+            host_url = "https://planilhas-1.onrender.com"
+        else:
+            host_url = request.host_url.rstrip('/')
+        url_completa = f"{host_url}{url_imagem}"
+        
+        # Salvar no banco para arquivamento
+        from web_access_db import salvar_imagem
+        salvar_imagem(
+            filename=nome_seguro,
+            nome_original=file.filename,
+            url=url_completa,
+            tipo=extensao,
+            tamanho=os.path.getsize(caminho_arquivo)
+        )
+        
+        print(f"✅ Imagem salva: {caminho_arquivo}")
+        print(f"🔗 URL: {url_completa}")
+        
+        return jsonify({
+            'success': True,
+            'url': url_completa,
+            'filename': nome_seguro
+        })
+        
+    except Exception as e:
+        print(f"❌ Erro no upload: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# Servir arquivos da pasta uploads
+@app.route('/uploads/<path:filename>')
+def serve_upload(filename):
+    """Serve imagens da pasta uploads."""
+    pasta_uploads = os.path.join(BASE_DIR, 'uploads')
+    return send_from_directory(pasta_uploads, filename)
+
+
+@app.route('/gerenciar-imagens')
+def gerenciar_imagens():
+    """Pagina para listar e buscar imagens arquivadas."""
+    from web_access_db import listar_imagens, buscar_imagens
+    
+    termo = request.args.get('q', '')
+    if termo:
+        imagens = buscar_imagens(termo, limit=100)
+    else:
+        imagens = listar_imagens(limit=100)
+    
+    return render_template('gerenciar_imagens.html', imagens=imagens, termo=termo)
+
+
+# ============================
+# INICIALIZACAO
+# ============================
+
 if __name__ == '__main__':
     try:
         print("=== INICIALIZANDO APP PRINCIPAL ===")
@@ -1452,13 +1563,14 @@ if __name__ == '__main__':
         if len(sys.argv) >= 3 and sys.argv[1] == "--run-module":
             sys.exit(executar_modulo_desktop(sys.argv[2]))
         
-        print("Iniciando app Flask...")
+        # INICIAR O SERVIDOR FLASK
+        print("🚀 Iniciando servidor Flask...")
         executar_app()
+            
     except Exception as e:
         print(f"❌ ERRO FATAL AO INICIAR APLICACAO: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+
+
