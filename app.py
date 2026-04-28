@@ -9,6 +9,7 @@ import importlib
 import threading
 import webbrowser
 import runpy
+import requests
 from functools import wraps
 from openpyxl import load_workbook
 from werkzeug.utils import secure_filename
@@ -16,6 +17,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import json
 from datetime import datetime
 import socket
+import hashlib
+import base64
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, send_file, send_from_directory, session, g
 
@@ -47,9 +50,51 @@ from web_access_db import (
     create_organization as _create_org,
     create_user as _create_user,
     create_invite as _create_invite,
+    redeem_invite as _redeem_invite,
 )
 
 print("=== IMPORTS DE BANCO OK ===")
+
+def gerar_url_curta(base_url, codigo_convite):
+    """Gera URL curta com preview usando hash base64"""
+    # Criar hash único para o convite
+    hash_obj = hashlib.md5(f"{codigo_convite}_{time.time()}".encode())
+    short_code = base64.urlsafe_b64encode(hash_obj.digest()[:6]).decode('utf-8').rstrip('=')
+    
+    # URL curta simulada (em produção poderia usar bit.ly, tinyurl, etc)
+    url_curta = f"https://inv.pt/{short_code}"
+    
+    return {
+        'curta': url_curta,
+        'preview': f"Convite para organização - Clique para aceitar",
+        'qr_code': f"data:image/png;base64,{gerar_qr_code_base64(base_url)}" if gerar_qr_code_base64 else None
+    }
+
+def gerar_qr_code_base64(url):
+    """Gera QR Code em base64 (requiere qrcode pillow)"""
+    try:
+        import qrcode
+        from io import BytesIO
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        return img_str
+    except ImportError:
+        return None
+    except Exception as e:
+        print(f"Erro ao gerar QR code: {e}")
+        return None
 
 # Verificar DATABASE_URL
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -350,9 +395,43 @@ def comecar():
 def cadastro():
     """Tela de registro."""
     nxt = request.args.get("next")
+    codigo_convite = request.args.get("convite")
+    
     if nxt:
         session["next"] = nxt
-    return render_template("registro_separado.html", config=SISTEMA_CONFIG, next=nxt or "")
+    
+    # Se há código de convite, validar e mostrar informações
+    convite_info = None
+    if codigo_convite:
+        try:
+            conn = _get_db_connection()
+            convite = conn.execute(
+                """
+                SELECT i.code, i.role, i.email, i.created_at, o.nome as org_nome
+                FROM invites i
+                JOIN organizations o ON i.organization_id = o.id
+                WHERE i.code = ? AND i.used_at IS NULL
+                """,
+                (codigo_convite,)
+            ).fetchone()
+            
+            if convite:
+                convite_info = {
+                    'code': convite['code'],
+                    'role': convite['role'],
+                    'email': convite['email'],
+                    'org_nome': convite['org_nome'],
+                    'created_at': convite['created_at']
+                }
+        except Exception as e:
+            print(f"Erro ao validar convite: {e}")
+    
+    return render_template(
+        "registro_separado.html", 
+        config=SISTEMA_CONFIG, 
+        next=nxt or "",
+        convite=convite_info
+    )
 
 
 @app.route("/logout")
@@ -807,6 +886,29 @@ def admin_colaboradores():
     )
 
 
+@app.route("/i/<short_code>")
+def redirect_convite_curto(short_code):
+    """Redireciona URL curta para o convite completo"""
+    try:
+        # Buscar convite pelo código curto (em produção poderia ter tabela de mapeamento)
+        conn = _get_db_connection()
+        convites = conn.execute("SELECT code FROM invites WHERE used_at IS NULL ORDER BY created_at DESC LIMIT 100").fetchall()
+        
+        # Tentar encontrar convite correspondente (simplificado)
+        for convite in convites:
+            hash_obj = hashlib.md5(f"{convite['code']}_{int(time.time())}".encode())
+            generated_short = base64.urlsafe_b64encode(hash_obj.digest()[:6]).decode('utf-8').rstrip('=')
+            
+            if generated_short == short_code:
+                base_url = request.url_root.rstrip('/')
+                return redirect(f"{base_url}/cadastro?convite={convite['code']}")
+        
+        return "Link inválido ou expirado", 404
+    except Exception as e:
+        print(f"Erro ao redirecionar link curto: {e}")
+        return "Erro ao processar link", 500
+
+
 @app.route("/admin/convites", methods=["POST"])
 @_login_required
 @_paid_required
@@ -821,7 +923,22 @@ def admin_criar_convite():
     if role not in ("admin", "collab"):
         role = "collab"
     code = _create_invite(org_id, role=role, email=email or None)
-    return jsonify({"success": True, "code": code})
+    
+    # Gerar link completo
+    base_url = request.url_root.rstrip('/')
+    invite_link = f"{base_url}/cadastro?convite={code}"
+    
+    # Gerar URL curta com preview
+    url_info = gerar_url_curta(invite_link, code)
+    
+    return jsonify({
+        "success": True, 
+        "code": code,
+        "link": invite_link,
+        "link_curto": url_info['curta'],
+        "preview": url_info['preview'],
+        "qr_code": url_info['qr_code']
+    })
 
 
 def get_latest_desktop_exe():
@@ -1478,18 +1595,26 @@ def upload_imagem():
             host_url = request.host_url.rstrip('/')
         url_completa = f"{host_url}{url_imagem}"
         
-        # Salvar no banco para arquivamento
-        from web_access_db import salvar_imagem
-        salvar_imagem(
-            filename=nome_seguro,
-            nome_original=file.filename,
-            url=url_completa,
-            tipo=extensao,
-            tamanho=os.path.getsize(caminho_arquivo)
-        )
-        
+        # Retornar URL imediatamente (SEM ESPERAR BANCO)
         print(f"✅ Imagem salva: {caminho_arquivo}")
         print(f"🔗 URL: {url_completa}")
+        
+        # Salvar no banco em SEGUNDO PLANO (não bloqueia resposta)
+        def salvar_no_banco_async():
+            try:
+                from web_access_db import salvar_imagem
+                salvar_imagem(
+                    filename=nome_seguro,
+                    nome_original=file.filename,
+                    url=url_completa,
+                    tipo=extensao,
+                    tamanho=os.path.getsize(caminho_arquivo)
+                )
+            except Exception as e:
+                print(f"⚠️ Erro ao salvar no banco (não crítico): {e}")
+        
+        import threading
+        threading.Thread(target=salvar_no_banco_async, daemon=True).start()
         
         return jsonify({
             'success': True,
