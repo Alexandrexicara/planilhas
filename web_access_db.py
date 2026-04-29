@@ -1,3 +1,8 @@
+"""Módulo de acesso ao banco de dados para o sistema Planilhas.
+
+Fornece funções para autenticação, gerenciamento de usuários,
+organizações, convites e upload de imagens.
+"""
 import os
 import sqlite3
 import secrets
@@ -12,20 +17,23 @@ DB_FILENAME = "acesso_web.db"
 
 
 def _utcnow_str():
+    """Retorna a data/hora atual em UTC como string formatada."""
     return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def get_db_path():
+    """Retorna o caminho completo do arquivo de banco de dados."""
     # No Render, usar diretório temporário
     if os.environ.get('RENDER'):
         db_dir = os.path.join('/tmp', 'planilhas')
         os.makedirs(db_dir, exist_ok=True)
         return os.path.join(db_dir, DB_FILENAME)
-    
+
     return ensure_from_resource(DB_FILENAME)
 
 
 def connect():
+    """Conecta ao banco de dados SQLite e garante que as tabelas existam."""
     # Garantir que o banco existe no Render
     db_path = get_db_path()
     if os.environ.get('RENDER') and not os.path.exists(db_path):
@@ -70,13 +78,14 @@ def connect():
         """)
         conn.commit()
         conn.close()
-    
+
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db():
+    """Inicializa o banco de dados criando todas as tabelas necessárias."""
     conn = connect()
     cur = conn.cursor()
 
@@ -150,6 +159,7 @@ def init_db():
 
 
 def any_organization_exists():
+    """Verifica se existe pelo menos uma organização no banco."""
     conn = connect()
     try:
         row = conn.execute("SELECT 1 FROM organizations LIMIT 1").fetchone()
@@ -159,6 +169,7 @@ def any_organization_exists():
 
 
 def create_organization(nome, payment_amount=50.00):
+    """Cria uma nova organização no banco de dados."""
     conn = connect()
     try:
         cur = conn.cursor()
@@ -176,6 +187,7 @@ def create_organization(nome, payment_amount=50.00):
 
 
 def create_user(organization_id, nome, email, senha, role="collab", ativo=1):
+    """Cria um novo usuário vinculado a uma organização."""
     conn = connect()
     try:
         password_hash = generate_password_hash(senha)
@@ -202,6 +214,7 @@ def create_user(organization_id, nome, email, senha, role="collab", ativo=1):
 
 
 def ensure_superadmin(email, senha):
+    """Garante que existe um superadmin no sistema, criando se necessário."""
     if not email or not senha:
         return None
 
@@ -237,10 +250,11 @@ def ensure_superadmin(email, senha):
 
 
 def authenticate(email, senha):
-    print(f"=== DEBUG AUTHENTICATE ===")
+    """Autentica um usuário pelo email e senha."""
+    print("=== DEBUG AUTHENTICATE ===")
     print(f"Email: {email}")
     print(f"Senha: {senha}")
-    
+
     if not email or not senha:
         print("Email ou senha vazios")
         return None
@@ -258,11 +272,11 @@ def authenticate(email, senha):
         ).fetchone()
 
         print(f"Usuário encontrado: {row}")
-        
+
         if not row:
             print("Usuário não encontrado")
             return None
-            
+
         if int(row["ativo"]) != 1:
             print("Usuário inativo")
             return None
@@ -285,6 +299,7 @@ def authenticate(email, senha):
 
 
 def get_user(user_id):
+    """Busca um usuário pelo ID."""
     conn = connect()
     try:
         row = conn.execute(
@@ -301,6 +316,7 @@ def get_user(user_id):
 
 
 def get_organization(org_id):
+    """Busca uma organização pelo ID."""
     if org_id is None:
         return None
 
@@ -321,6 +337,7 @@ def get_organization(org_id):
 
 
 def organization_has_access(org_id):
+    """Verifica se a organização tem acesso pago ao sistema."""
     org = get_organization(org_id)
     if not org:
         return False
@@ -328,6 +345,7 @@ def organization_has_access(org_id):
 
 
 def set_organization_payment_pending(org_id, txid, qr_base64=None, pix_key=None):
+    """Define o status de pagamento da organização como pendente."""
     conn = connect()
     try:
         conn.execute(
@@ -348,6 +366,7 @@ def set_organization_payment_pending(org_id, txid, qr_base64=None, pix_key=None)
 
 
 def set_organization_paid(org_id):
+    """Define o status de pagamento da organização como pago."""
     conn = connect()
     try:
         conn.execute(
@@ -365,6 +384,7 @@ def set_organization_paid(org_id):
 
 
 def create_invite(organization_id, role="collab", email=None):
+    """Cria um código de convite para uma organização."""
     code = secrets.token_urlsafe(10).replace("-", "").replace("_", "")
     conn = connect()
     try:
@@ -389,6 +409,7 @@ def create_invite(organization_id, role="collab", email=None):
 
 
 def redeem_invite(code, nome, email, senha):
+    """Resgata um convite criando um novo usuário na organização."""
     if not code:
         return False, "Código de convite obrigatório", None
 
@@ -412,7 +433,13 @@ def redeem_invite(code, nome, email, senha):
         if invite["email"] and invite["email"] != email_norm:
             return False, "Este convite é para outro email", None
 
-        user_id = create_user(invite["organization_id"], nome, email_norm, senha, role=invite["role"])
+        user_id = create_user(
+            invite["organization_id"],
+            nome,
+            email_norm,
+            senha,
+            role=invite["role"]
+        )
         conn.execute(
             """
             UPDATE invites
@@ -430,6 +457,7 @@ def redeem_invite(code, nome, email, senha):
 
 
 def list_invites(organization_id, limit=50):
+    """Lista convites ativos de uma organização."""
     conn = connect()
     try:
         rows = conn.execute(
@@ -460,7 +488,7 @@ def salvar_imagem(filename, nome_original, url, tipo=None, tamanho=None):
         )
         conn.commit()
         return True
-    except Exception as e:
+    except sqlite3.Error as e:
         print(f"❌ Erro ao salvar imagem no banco: {e}")
         return False
     finally:
@@ -505,6 +533,7 @@ def buscar_imagens(termo, limit=50):
 
 
 def list_users(organization_id, limit=200):
+    """Lista usuários de uma organização."""
     conn = connect()
     try:
         rows = conn.execute(
@@ -520,4 +549,3 @@ def list_users(organization_id, limit=200):
         return [dict(r) for r in rows]
     finally:
         conn.close()
-
