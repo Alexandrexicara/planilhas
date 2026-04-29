@@ -68,6 +68,7 @@ def criar_banco_plus():
         cliente TEXT COLLATE NOCASE,
         arquivo_origem TEXT,
         picture TEXT,
+        imagem TEXT,
         link TEXT,
         codigo TEXT COLLATE NOCASE,
         descricao TEXT COLLATE NOCASE,
@@ -115,6 +116,9 @@ def criar_banco_plus():
     if 'picture' not in colunas_existentes:
         cursor.execute("ALTER TABLE produtos_plus ADD COLUMN picture TEXT DEFAULT ''")
         print("DEBUG: Coluna fisica 'picture' adicionada em produtos_plus")
+    if 'imagem' not in colunas_existentes:
+        cursor.execute("ALTER TABLE produtos_plus ADD COLUMN imagem TEXT DEFAULT ''")
+        print("DEBUG: Coluna fisica 'imagem' adicionada em produtos_plus")
     if 'link' not in colunas_existentes:
         cursor.execute("ALTER TABLE produtos_plus ADD COLUMN link TEXT DEFAULT ''")
         print("DEBUG: Coluna fisica 'link' adicionada em produtos_plus")
@@ -292,17 +296,31 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
             
-            # Extrair dados usando mapeamento direto (Ã­ndice -> coluna banco)
+            # Extrair dados usando mapeamento direto (índice -> coluna banco)
             dados = {col: '' for col in COLUNAS_BANCO_PLUS}  # Inicializar todas colunas vazias
             
             for i, cell in enumerate(row):
                 if i in colunas_detectadas:
                     coluna_banco = colunas_detectadas[i]
-                    dados[coluna_banco] = formatar_valor_celula(cell, coluna_banco)
+                    # Se for PICTURE, usar exatamente da planilha
+                    if coluna_banco == 'picture':
+                        picture_valor = str(cell).strip() if cell is not None else ''
+                        dados[coluna_banco] = picture_valor  # ← SEM fallback, exato da planilha
+                        print(f"DEBUG: PICTURE da planilha: '{picture_valor}'")
+                    elif coluna_banco == 'imagem':
+                        imagem_valor = str(cell).strip() if cell is not None else ''
+                        dados[coluna_banco] = imagem_valor
+                        print(f"DEBUG: IMAGEM da planilha: '{imagem_valor}'")
+                    elif coluna_banco == 'link':
+                        link_valor = str(cell).strip() if cell is not None else ''
+                        dados[coluna_banco] = link_valor
+                        print(f"DEBUG: LINK da planilha: '{link_valor}'")
+                    else:
+                        dados[coluna_banco] = formatar_valor_celula(cell, coluna_banco)
             
-            # Fallback: se PICTURE nao foi mapeada, usa o valor da primeira coluna
-            if not dados.get('picture') and len(row) > 0 and row[0]:
-                dados['picture'] = str(row[0]).strip()
+            # REMOVIDO: Fallback automático - agora usa exatamente da planilha
+            # if not dados.get('picture') and len(row) > 0 and row[0]:
+            #     dados['picture'] = str(row[0]).strip()
             
             # Calcular TOTAL AMOUNT UMO = QUANTITY × UNIT PRICE UMO
             if not dados.get('total_amount') and dados.get('quantity') and dados.get('valor'):
@@ -358,6 +376,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 dados['cliente'],
                 dados['arquivo_origem'],
                 dados['picture'],
+                dados['imagem'],
                 dados['link'],
                 dados['codigo'],
                 dados['descricao'],
@@ -402,7 +421,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             if len(dados_batch) >= batch_size:
                 get_cursor_plus().executemany("""
                     INSERT INTO produtos_plus
-                    (cliente, arquivo_origem, picture, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                    (cliente, arquivo_origem, picture, imagem, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
                      quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                      total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                      net_weight_ctn, gross_weight_ctn, factory, address, telephone,
@@ -421,7 +440,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         if dados_batch:
             get_cursor_plus().executemany("""
                 INSERT INTO produtos_plus
-                (cliente, arquivo_origem, picture, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                (cliente, arquivo_origem, picture, imagem, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
                  quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
                  total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
                  net_weight_ctn, gross_weight_ctn, factory, address, telephone,
@@ -451,7 +470,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
 
 # Definir colunas fixas do sistema PLUS (mesma ordem do banco)
 COLUNAS_BANCO_PLUS = [
-    'cliente', 'arquivo_origem', 'picture', 'link', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
+    'cliente', 'arquivo_origem', 'picture', 'imagem', 'link', 'codigo', 'descricao', 'peso', 'valor', 'ncm',
     'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount', 'marca',
     'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
     'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
@@ -462,6 +481,7 @@ COLUNAS_BANCO_PLUS = [
 # Mapeamento de sinÃ´nimos para colunas PLUS
 MAPEAMENTO_SINONIMOS_PLUS = {
     'picture': ['picture', 'imagem', 'image', 'foto', 'url', 'image url', 'img'],
+    'imagem': ['imagem', 'image', 'foto', 'picture file', 'arquivo imagem'],
     'link': ['link', 'url', 'link imagem', 'url imagem', 'imagem url', 'image link', 'foto link', 'link foto'],
     'codigo': ['codigo', 'cÃ³digo', 'cod', 'code', 'item', 'sku', 'referencia', 'referÃªncia', 'id', 'produto_id'],
     'descricao': [
@@ -548,7 +568,7 @@ def detectar_colunas_excel_plus(cabecalhos):
     return mapeamento
 
 COLUNAS_PLUS_BUSCA = [
-    'cliente', 'arquivo_origem', 'picture', 'link', 'data_importacao', 'codigo', 'descricao', 'peso',
+    'cliente', 'arquivo_origem', 'picture', 'imagem', 'link', 'data_importacao', 'codigo', 'descricao', 'peso',
     'valor', 'ncm', 'doc', 'rev', 'code', 'quantity', 'um', 'ccy', 'total_amount',
     'marca', 'inner_qty', 'master_qty', 'total_ctns', 'gross_weight',
     'net_weight_pc', 'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn',
@@ -562,6 +582,7 @@ COLUNAS_PLUS_EXIBICAO = [
     ('arquivo_origem', 'ARQUIVO_ORIGEM'),
     ('data_importacao', 'DATA_IMPORTACAO'),
     ('picture', 'PICTURE'),
+    ('imagem', 'IMAGEM'),
     ('link', 'LINK'),
     ('doc', 'DOC'),
     ('rev', 'REV'),

@@ -4,6 +4,8 @@
         "ARQUIVO_ORIGEM",
         "DATA_IMPORTACAO",
         "PICTURE",
+        "IMAGEM",
+        "LINK",
         "DOC",
         "REV",
         "ITEM",

@@ -45,9 +45,10 @@ def criar_banco():
     """Cria o banco de dados SQLite com 36 colunas exatas do Excel + 64 colunas vazias"""
     cursor = get_cursor()
     
-    # Colunas exatas do Excel (37 colunas)
+    # Colunas exatas do Excel (39 colunas)
     colunas_excel = [
         "PICTURE",
+        "IMAGEM",
         "LINK",
         "DOC",
         "REV",
@@ -111,6 +112,18 @@ def criar_banco():
             total_registros INTEGER NOT NULL
         )
     """)
+    
+    # MIGRAÇÃO AUTOMÁTICA: Adicionar colunas IMAGEM e LINK se não existirem
+    cursor.execute("PRAGMA table_info(produtos)")
+    colunas_existentes = {row[1] for row in cursor.fetchall()}
+    
+    if 'IMAGEM' not in colunas_existentes:
+        cursor.execute('ALTER TABLE produtos ADD COLUMN "IMAGEM" TEXT DEFAULT ""')
+        print("✅ Migração: Coluna 'IMAGEM' adicionada ao banco de dados")
+    
+    if 'LINK' not in colunas_existentes:
+        cursor.execute('ALTER TABLE produtos ADD COLUMN "LINK" TEXT DEFAULT ""')
+        print("✅ Migração: Coluna 'LINK' adicionada ao banco de dados")
     
     get_connection().commit()
     print(f"✅ Banco criado/verificado com {len(todas_colunas)} colunas do Excel")
@@ -432,6 +445,11 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
                 mapeamento[i] = 'PICTURE'
                 print(f"✅ Coluna {i}: '{cab}' -> MAPEADA (sinônimo: 'PICTURE')")
             elif str(cab).strip().lower() in [
+                'imagem', 'image', 'foto', 'picture file', 'arquivo imagem'
+            ]:
+                mapeamento[i] = 'IMAGEM'
+                print(f"✅ Coluna {i}: '{cab}' -> MAPEADA (sinônimo: 'IMAGEM')")
+            elif str(cab).strip().lower() in [
                 'link', 'url link', 'link url', 'imagem link', 'foto link'
             ]:
                 mapeamento[i] = 'LINK'
@@ -487,25 +505,33 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
         conn_thread = get_connection()
         cursor_thread = get_cursor()
         
-        # Processar dados - ler da linha 3 em diante
-        # Primeiro: ler nome da imagem da linha 1
-        linha_1 = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
-        nome_imagem_principal = str(linha_1[0]).strip() if len(linha_1) > 0 and linha_1[0] else ''
-        
+        # Processar dados - ler da linha 3 em diante (SEM linha 1 como no sistema_plus.py)
         for row in ws.iter_rows(min_row=linha_cabecalho+1, values_only=True):
             # Pular linhas vazias
             if all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
             
-            # Criar dicionário de valores
-            valores = {}
+            # Extrair dados usando mapeamento direto (igual ao sistema_plus.py)
+            valores = {col: '' for col in colunas_banco}  # Inicializar todas colunas vazias
+            
             for i, cell in enumerate(row):
                 if i in mapeamento:
                     col_name = mapeamento[i]
-                    # Se for a coluna PICTURE (índice 0), usar nome da linha 1
+                    # Se for PICTURE, usar exatamente da planilha
                     if col_name == 'PICTURE':
                         picture_valor = str(cell).strip() if cell is not None else ''
-                        valores[col_name] = picture_valor or nome_imagem_principal
+                        valores[col_name] = picture_valor  # ← SEM fallback, exato da planilha
+                        print(f"DEBUG: PICTURE da planilha: '{picture_valor}'")
+                    elif col_name == 'IMAGEM':
+                        # Processar nome da imagem da coluna IMAGEM
+                        imagem_valor = str(cell).strip() if cell is not None else ''
+                        valores[col_name] = imagem_valor
+                        print(f"DEBUG: IMAGEM da planilha: '{imagem_valor}'")
+                    elif col_name == 'LINK':
+                        # Processar URL de imagem da coluna LINK
+                        link_valor = str(cell).strip() if cell is not None else ''
+                        valores[col_name] = link_valor
+                        print(f"DEBUG: LINK da planilha: '{link_valor}'")
                     else:
                         valores[col_name] = formatar_valor_celula(cell, col_name)
             
@@ -538,10 +564,18 @@ def importar_planilha(caminho_arquivo, cliente=None, progress_callback=None):
                     if total_importados < 3:
                         print(f"DEBUG: Erro no cálculo: {e}")
             
-            # Adicionar campos fixos
+            # Adicionar campos fixos (igual ao sistema_plus.py)
             valores['cliente'] = cliente
             valores['arquivo_origem'] = os.path.basename(caminho_arquivo)
             valores['data_importacao'] = data_atual
+            
+            # Debug da primeira linha (igual ao sistema_plus.py)
+            if total_importados == 0:
+                print(f"DEBUG: === PRIMEIRA LINHA SISTEMA.PY ===")
+                print(f"DEBUG: Valores: {dict(list(valores.items())[:10])}")
+                print(f"DEBUG: PICTURE: '{valores.get('PICTURE', '')}'")
+                print(f"DEBUG: IMAGEM: '{valores.get('IMAGEM', '')}'")
+                print(f"DEBUG: LINK: '{valores.get('LINK', '')}'")
             
             # Criar tupla na ordem correta
             tupla = tuple(valores.get(c, '') for c in colunas_insert)
@@ -1258,8 +1292,8 @@ class SistemaPlanilhas:
             
             self.colunas = tuple([c.upper() for c in colunas_ordenadas])
         except Exception as e:
-            # Fallback para colunas padrão com IMAGEM ao lado de DESCRICAO
-            self.colunas = ('CLIENTE', 'ARQUIVO_ORIGEM', 'CODIGO', 'DESCRICAO', 'IMAGEM', 'PESO', 'VALOR', 'NCM')
+            # Fallback para colunas padrão com IMAGEM e LINK ao lado de DESCRICAO
+            self.colunas = ('CLIENTE', 'ARQUIVO_ORIGEM', 'CODIGO', 'DESCRICAO', 'IMAGEM', 'LINK', 'PESO', 'VALOR', 'NCM')
         
         self.tabela = ttk.Treeview(frame_tabela, columns=self.colunas, show='headings', height=15)
         
@@ -1277,6 +1311,8 @@ class SistemaPlanilhas:
                 self.tabela.column(col, width=150, minwidth=100, stretch=True)
             elif col == 'IMAGEM':
                 self.tabela.column(col, width=80, minwidth=60, stretch=False)
+            elif col == 'LINK':
+                self.tabela.column(col, width=200, minwidth=150, stretch=True)
             else:
                 # Todas as outras colunas com largura generosa e stretch
                 self.tabela.column(col, width=200, minwidth=120, stretch=True)
