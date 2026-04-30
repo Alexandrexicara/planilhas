@@ -1144,10 +1144,15 @@ def abrir_janela_sistema(script_name, nome_exibicao):
 
     if os.name == 'nt':
         pythonw_path = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')
-        executable = pythonw_path if os.path.exists(pythonw_path) else sys.executable
-        creationflags = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
-        if creationflags:
-            popen_kwargs['creationflags'] = creationflags
+        # Usar python.exe em vez de pythonw.exe para ver logs no console
+        executable = sys.executable
+        # Nao usar CREATE_NEW_CONSOLE para manter logs no terminal atual
+        # creationflags = getattr(subprocess, 'CREATE_NEW_CONSOLE', 0)
+        # if creationflags:
+        #     popen_kwargs['creationflags'] = creationflags
+        # Redirecionar stdout/stderr para ver logs
+        popen_kwargs['stdout'] = subprocess.PIPE
+        popen_kwargs['stderr'] = subprocess.STDOUT
     else:
         executable = sys.executable
         popen_kwargs['start_new_session'] = True
@@ -1159,7 +1164,21 @@ def abrir_janela_sistema(script_name, nome_exibicao):
     else:
         raise FileNotFoundError(f"Arquivo nao encontrado: {script_name}")
 
+    print(f"[Flask] Abrindo: {' '.join(cmd)}")
     processo = subprocess.Popen(cmd, **popen_kwargs)
+    
+    # Thread para ler e imprimir logs do sistema
+    def ler_logs():
+        try:
+            if processo.stdout:
+                for linha in iter(processo.stdout.readline, b''):
+                    if linha:
+                        print(f"[{nome_exibicao}] {linha.decode('utf-8', errors='ignore').rstrip()}")
+        except Exception as e:
+            print(f"[Flask] Erro ao ler logs: {e}")
+    
+    threading.Thread(target=ler_logs, daemon=True).start()
+    
     time.sleep(0.6)
     if processo.poll() is not None:
         raise RuntimeError(
@@ -1327,6 +1346,54 @@ def executar_sistema():
     except Exception as e:
         return render_template('iniciando.html', erro=str(e))
 
+
+
+@app.route('/teste-importacao-plus')
+def teste_importacao_plus():
+    """Rota de teste para verificar se a importação do PLUS funciona"""
+    try:
+        if sistema_plus is None:
+            erro = ERROS_IMPORTACAO.get('sistema_plus', 'Modulo nao carregado')
+            return jsonify({
+                'status': 'erro',
+                'mensagem': f'sistema_plus.py nao foi importado: {erro}'
+            })
+        
+        # Testar se a função de importação existe
+        if not hasattr(sistema_plus, 'importar_planilha_plus'):
+            return jsonify({
+                'status': 'erro',
+                'mensagem': 'Funcao importar_planilha_plus nao existe'
+            })
+        
+        # Verificar se o banco está configurado
+        if hasattr(sistema_plus, 'get_cursor_plus'):
+            try:
+                cursor = sistema_plus.get_cursor_plus()
+                cursor.execute("SELECT COUNT(*) FROM produtos_plus")
+                total = cursor.fetchone()[0]
+                return jsonify({
+                    'status': 'ok',
+                    'mensagem': 'sistema_plus.py carregado corretamente',
+                    'total_produtos': total,
+                    'funcao_importacao': True
+                })
+            except Exception as e:
+                return jsonify({
+                    'status': 'erro_banco',
+                    'mensagem': f'Erro ao acessar banco: {str(e)}'
+                })
+        else:
+            return jsonify({
+                'status': 'erro',
+                'mensagem': 'Funcao get_cursor_plus nao existe'
+            })
+            
+    except Exception as e:
+        return jsonify({
+            'status': 'erro',
+            'mensagem': f'Erro inesperado: {str(e)}'
+        })
 
 
 @app.route('/upload')

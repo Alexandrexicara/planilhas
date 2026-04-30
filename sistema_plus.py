@@ -266,20 +266,23 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         print(f"DEBUG: Primeiros cabeÃ§alhos: {cabecalhos[:10]}")
         
         colunas_detectadas = detectar_colunas_excel_plus(cabecalhos)
+        import sys
+        sys.stdout.flush()
         print(f"DEBUG: Colunas detectadas: {colunas_detectadas}")
+        sys.stdout.flush()
         
         # Verificar se descricao foi detectada
         if 'descricao' in colunas_detectadas.values():
-            print("DEBUG: ✅ Coluna 'descricao' foi detectada!")
+            print("DEBUG: [OK] Coluna 'descricao' foi detectada!")
         else:
-            print("DEBUG: ❌ Coluna 'descricao' NAO foi detectada!")
+            print("DEBUG: [ERRO] Coluna 'descricao' NAO foi detectada!")
             print(f"DEBUG: Valores mapeados: {list(colunas_detectadas.values())}")
         
         # Verificar se peso foi detectado
         if 'peso' in colunas_detectadas.values():
-            print("DEBUG: ✅ Coluna 'peso' foi detectada!")
+            print("DEBUG: [OK] Coluna 'peso' foi detectada!")
         else:
-            print("DEBUG: ❌ Coluna 'peso' NAO foi detectada!")
+            print("DEBUG: [ERRO] Coluna 'peso' NAO foi detectada!")
         
         total_importados = 0
         total_duplicatas = 0
@@ -292,9 +295,30 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
         # ComeÃ§ar a ler dados apÃ³s a linha de cabeÃ§alho
         linha_inicial_dados = linha_cabecalho + 1
         
+        print(f"DEBUG: Iniciando leitura de dados da linha {linha_inicial_dados}")
+        print(f"DEBUG: Total de linhas na planilha: {ws.max_row}")
+        print(f"DEBUG: Colunas detectadas para mapeamento: {colunas_detectadas}")
+        
+        linhas_lidas = 0
+        linhas_vazias = 0
         for row in ws.iter_rows(min_row=linha_inicial_dados, values_only=True):
+            linhas_lidas += 1
+            
+            # DEBUG: Mostrar cada linha lida (primeiras 3)
+            if linhas_lidas <= 3:
+                print(f"DEBUG: Linha {linhas_lidas} lida: {row[:5]}...")
+            
             if all(cell is None or str(cell).strip() == '' for cell in row):
+                linhas_vazias += 1
+                if linhas_lidas <= 3:
+                    print(f"DEBUG: Linha {linhas_lidas} está VAZIA - ignorando")
                 continue
+            
+            # DEBUG: Mostrar primeira linha de dados válida
+            if total_importados == 0:
+                print(f"DEBUG: === PRIMEIRA LINHA DE DADOS VÁLIDA ===")
+                print(f"DEBUG: Row data completa: {row}")
+                print(f"DEBUG: Tamanho da row: {len(row)}")
             
             # Extrair dados usando mapeamento direto (índice -> coluna banco)
             dados = {col: '' for col in COLUNAS_BANCO_PLUS}  # Inicializar todas colunas vazias
@@ -354,6 +378,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             # Adicionar campos fixos
             dados['cliente'] = cliente
             dados['arquivo_origem'] = os.path.basename(caminho_arquivo)
+            dados['data_importacao'] = data_atual
             
             # DEBUG: Mostrar primeiros dados sendo importados
             if total_importados < 3:
@@ -363,6 +388,7 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
             hash_dados = hashlib.md5(
                 f"{cliente}_{dados.get('codigo','')}_{dados.get('descricao','')}".encode()
             ).hexdigest()
+            dados['hash_dados'] = hash_dados
             
             # Verificar duplicata se necessÃ¡rio
             if duplicatas:
@@ -413,12 +439,43 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                 dados['li'],
                 dados['obs'],
                 dados['status'],
-                data_atual,
-                hash_dados
+                dados['data_importacao'],
+                dados['hash_dados']
             ))
+            
+            # DEBUG: Mostrar quando primeiro item é adicionado
+            if len(dados_batch) == 0:
+                print(f"DEBUG: Primeiro item sendo adicionado ao batch - codigo: {dados.get('codigo', 'N/A')}")
             
             # Insert em batch com todas as colunas
             if len(dados_batch) >= batch_size:
+                try:
+                    get_cursor_plus().executemany("""
+                        INSERT INTO produtos_plus
+                        (cliente, arquivo_origem, picture, imagem, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
+                         quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
+                         total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
+                         net_weight_ctn, gross_weight_ctn, factory, address, telephone,
+                         ean13, dun14_inner, dun14_master, length, width, height, cbm,
+                         prc_kg, li, obs, status, data_importacao, hash_dados)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, dados_batch)
+                    get_connection_plus().commit()
+                    total_importados += len(dados_batch)
+                    print(f"DEBUG: Batch inserido - Total: {total_importados}")
+                except Exception as e_insert:
+                    print(f"DEBUG: ❌ ERRO NO BATCH: {e_insert}")
+                    print(f"DEBUG: Tamanho do batch: {len(dados_batch)}")
+                    print(f"DEBUG: Primeiro item do batch: {dados_batch[0] if dados_batch else 'VAZIO'}")
+                    raise
+                dados_batch = []
+                
+                if progress_callback and total_importados % 10000 == 0:
+                    progress_callback(f"Importados: {total_importados:,}")
+        
+        # Insert final com todas as colunas
+        if dados_batch:
+            try:
                 get_cursor_plus().executemany("""
                     INSERT INTO produtos_plus
                     (cliente, arquivo_origem, picture, imagem, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
@@ -427,40 +484,41 @@ def importar_planilha_plus(caminho_arquivo, cliente=None, progress_callback=None
                      net_weight_ctn, gross_weight_ctn, factory, address, telephone,
                      ean13, dun14_inner, dun14_master, length, width, height, cbm,
                      prc_kg, li, obs, status, data_importacao, hash_dados)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, dados_batch)
                 get_connection_plus().commit()
                 total_importados += len(dados_batch)
-                dados_batch = []
-                
-                if progress_callback and total_importados % 10000 == 0:
-                    progress_callback(f"Importados: {total_importados:,}")
-        
-        # Insert final com todas as colunas
-        if dados_batch:
-            get_cursor_plus().executemany("""
-                INSERT INTO produtos_plus
-                (cliente, arquivo_origem, picture, imagem, link, codigo, descricao, peso, valor, ncm, doc, rev, code,
-                 quantity, um, ccy, total_amount, marca, inner_qty, master_qty,
-                 total_ctns, gross_weight, net_weight_pc, gross_weight_pc,
-                 net_weight_ctn, gross_weight_ctn, factory, address, telephone,
-                 ean13, dun14_inner, dun14_master, length, width, height, cbm,
-                 prc_kg, li, obs, status, data_importacao, hash_dados)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, dados_batch)
-            get_connection_plus().commit()
-            total_importados += len(dados_batch)
+                print(f"DEBUG: Batch final inserido - Total: {total_importados}")
+            except Exception as e_insert:
+                print(f"DEBUG: ❌ ERRO NO INSERT FINAL: {e_insert}")
+                print(f"DEBUG: Tamanho do batch: {len(dados_batch)}")
+                raise
         
         wb.close()
+        
+        # DEBUG: Mostrar totais
+        print(f"DEBUG: === FIM DA IMPORTAÇÃO ===")
+        print(f"DEBUG: Linhas lidas: {linhas_lidas}")
+        print(f"DEBUG: Linhas vazias ignoradas: {linhas_vazias}")
+        print(f"DEBUG: Linhas válidas processadas: {linhas_lidas - linhas_vazias}")
+        print(f"DEBUG: Total importados: {total_importados}")
+        print(f"DEBUG: Total duplicatas: {total_duplicatas}")
+        print(f"DEBUG: Tamanho do último batch: {len(dados_batch)}")
         
         # Atualizar estatÃ­sticas
         atualizar_estatisticas_plus()
         
         # DEBUG: Verificar dados no banco
         print(f"DEBUG: Verificando dados no banco PLUS apÃ³s importaÃ§Ã£o...")
-        get_cursor_plus().execute("SELECT codigo, descricao FROM produtos_plus LIMIT 5")
+        get_cursor_plus().execute("SELECT COUNT(*) FROM produtos_plus")
+        total_banco = get_cursor_plus().fetchone()[0]
+        print(f"DEBUG: Total de registros no banco PLUS: {total_banco}")
+        
+        get_cursor_plus().execute("SELECT codigo, descricao, picture, imagem, link FROM produtos_plus LIMIT 3")
         resultados_verificacao = get_cursor_plus().fetchall()
-        print(f"DEBUG: Primeiros 5 registros no banco: {resultados_verificacao}")
+        print(f"DEBUG: Primeiros 3 registros no banco:")
+        for r in resultados_verificacao:
+            print(f"  codigo={r[0]}, descricao={r[1][:30] if r[1] else ''}, picture={r[2]}, imagem={r[3]}, link={r[4]}")
         
         return total_importados, total_duplicatas
         
@@ -475,7 +533,8 @@ COLUNAS_BANCO_PLUS = [
     'inner_qty', 'master_qty', 'total_ctns', 'gross_weight', 'net_weight_pc',
     'gross_weight_pc', 'net_weight_ctn', 'gross_weight_ctn', 'factory',
     'address', 'telephone', 'ean13', 'dun14_inner', 'dun14_master',
-    'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status'
+    'length', 'width', 'height', 'cbm', 'prc_kg', 'li', 'obs', 'status',
+    'data_importacao', 'hash_dados'
 ]
 
 # Mapeamento de sinÃ´nimos para colunas PLUS
@@ -553,17 +612,19 @@ def detectar_colunas_excel_plus(cabecalhos):
         
         if coluna_encontrada:
             mapeamento[i] = coluna_encontrada
-            print(f"âœ… Coluna {i}: '{cab}' -> MAPEADA como '{coluna_encontrada}'")
+            print(f"[OK] Coluna {i}: '{cab}' -> MAPEADA como '{coluna_encontrada}'")
         else:
             colunas_nao_mapeadas.append((i, cab))
-            print(f"âŒ Coluna {i}: '{cab}' -> NÃƒO MAPEADA")
+            print(f"[NAO] Coluna {i}: '{cab}' -> NAO MAPEADA")
     
     print(f"\n=== RESUMO DO MAPEAMENTO PLUS ===")
-    print(f"âœ… Total mapeadas: {len(mapeamento)}")
-    print(f"âŒ Total nÃ£o mapeadas: {len(colunas_nao_mapeadas)}")
+    print(f"[OK] Total mapeadas: {len(mapeamento)}")
+    print(f"[INFO] Total nao mapeadas: {len(colunas_nao_mapeadas)}")
     if colunas_nao_mapeadas:
-        print(f"âŒ Colunas nÃ£o mapeadas: {colunas_nao_mapeadas}")
-    print(f"================================\n")
+        print(f"[INFO] Colunas nao mapeadas: {colunas_nao_mapeadas}")
+    print(f"================================")
+    import sys
+    sys.stdout.flush()
     
     return mapeamento
 
@@ -1245,7 +1306,9 @@ class SistemaPlanilhasPlus:
     
     def importar_pasta_plus(self):
         def importar_thread():
+            import traceback
             try:
+                print("[GUI] Iniciando importacao da pasta...")
                 self.status_bar_plus.config(text="ImportaÃ§Ã£o PLUS em andamento...")
                 self.janela.update()
                 
@@ -1253,14 +1316,33 @@ class SistemaPlanilhasPlus:
                 if not os.path.exists(pasta):
                     os.makedirs(pasta)
                 
-                total_geral = 0
                 arquivos = [f for f in os.listdir(pasta) if f.endswith(('.xlsx', '.xls'))]
+                print(f"[GUI] Arquivos encontrados: {arquivos}")
+                
+                if not arquivos:
+                    print("[GUI] Nenhum arquivo encontrado!")
+                    messagebox.showwarning("Aviso", "Nenhuma planilha encontrada na pasta 'planilhas'!")
+                    return
+                
+                total_geral = 0
                 
                 for arquivo in arquivos:
                     caminho = os.path.join(pasta, arquivo)
-                    importados, duplicatas = importar_planilha_plus(caminho, progress_callback=self.atualizar_progresso_plus)
-                    total_geral += importados
+                    print(f"[GUI] Importando: {caminho}")
+                    try:
+                        importados, duplicatas = importar_planilha_plus(
+                            caminho, 
+                            cliente=None,  # Será extraído do nome do arquivo
+                            progress_callback=self.atualizar_progresso_plus
+                        )
+                        print(f"[GUI] Resultado: {importados} importados, {duplicatas} duplicatas")
+                        total_geral += importados
+                    except Exception as e_arquivo:
+                        print(f"[GUI] ERRO no arquivo {arquivo}: {e_arquivo}")
+                        traceback.print_exc()
+                        raise
                 
+                print(f"[GUI] Total geral: {total_geral}")
                 self.atualizar_estatisticas_interface()
                 self.atualizar_lista_clientes_plus()
                 self.atualizar_lista_planilhas_plus()
@@ -1269,7 +1351,11 @@ class SistemaPlanilhasPlus:
                 self.status_bar_plus.config(text=f"ImportaÃ§Ã£o concluÃ­da: {total_geral:,} produtos")
                 
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro: {str(e)}")
+                erro_msg = str(e)
+                erro_tb = traceback.format_exc()
+                print(f"[GUI] ERRO GERAL: {erro_msg}")
+                print(f"[GUI] TRACEBACK: {erro_tb}")
+                messagebox.showerror("Erro", f"Erro na importaÃ§Ã£o: {erro_msg}")
         
         threading.Thread(target=importar_thread, daemon=True).start()
     
@@ -1281,12 +1367,26 @@ class SistemaPlanilhasPlus:
         
         if arquivos:
             def importar_thread():
+                import traceback
                 try:
+                    print(f"[GUI] Arquivos selecionados: {arquivos}")
                     total_geral = 0
                     for caminho in arquivos:
-                        importados, _ = importar_planilha_plus(caminho, progress_callback=self.atualizar_progresso_plus)
-                        total_geral += importados
+                        print(f"[GUI] Importando arquivo: {caminho}")
+                        try:
+                            importados, _ = importar_planilha_plus(
+                                caminho, 
+                                cliente=None,
+                                progress_callback=self.atualizar_progresso_plus
+                            )
+                            print(f"[GUI] Resultado: {importados} importados")
+                            total_geral += importados
+                        except Exception as e_arquivo:
+                            print(f"[GUI] ERRO no arquivo {caminho}: {e_arquivo}")
+                            traceback.print_exc()
+                            raise
                     
+                    print(f"[GUI] Total geral: {total_geral}")
                     self.atualizar_estatisticas_interface()
                     self.atualizar_lista_clientes_plus()
                     self.atualizar_lista_planilhas_plus()
@@ -1294,7 +1394,11 @@ class SistemaPlanilhasPlus:
                     messagebox.showinfo("ImportaÃ§Ã£o PLUS", f"Importados {total_geral:,} produtos!")
                     
                 except Exception as e:
-                    messagebox.showerror("Erro", f"Erro: {str(e)}")
+                    erro_msg = str(e)
+                    erro_tb = traceback.format_exc()
+                    print(f"[GUI] ERRO GERAL: {erro_msg}")
+                    print(f"[GUI] TRACEBACK: {erro_tb}")
+                    messagebox.showerror("Erro", f"Erro na importaÃ§Ã£o: {erro_msg}")
             
             threading.Thread(target=importar_thread, daemon=True).start()
     

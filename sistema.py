@@ -9,6 +9,11 @@ from datetime import datetime
 import csv
 from PIL import Image, ImageTk
 import ctypes
+import sys
+
+# Configurar UTF-8 para suportar emojis no Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # Base do projeto/arquivo para evitar variacao por CWD de .bat/.exe
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -987,7 +992,7 @@ class SistemaPlanilhas:
             print(f"DEBUG: Erro ao configurar AppUserModelID: {e}")
         
         self.janela = tk.Tk()
-        self.janela.title("Sistema Profissional de Planilhas - Busca Rápida")
+        self.janela.title("📊 Sistema de Gerenciamento de Planilhas v1.0 [02] - Busca Rápida")
         self.janela.geometry("1200x700")
         self.janela.configure(bg='#f0f0f0')
         
@@ -1272,28 +1277,37 @@ class SistemaPlanilhas:
             colunas_banco = get_colunas_banco()
             colunas_base = [c for c in colunas_banco.keys() if c != 'id']
             
-            # Reordenar para IMAGEM ficar ao lado de DESCRICAO
-            colunas_ordenadas = []
-            descricao_idx = -1
-            for i, c in enumerate(colunas_base):
-                if c == 'descricao':
-                    descricao_idx = i
-                    break
+            # DEBUG: Mostrar colunas do banco
+            print(f"DEBUG: Colunas do banco: {colunas_base[:15]}")  # Primeiras 15
+            print(f"DEBUG: Tem PICTURE: {'PICTURE' in colunas_base}")
+            print(f"DEBUG: Tem IMAGEM: {'IMAGEM' in colunas_base}")
+            print(f"DEBUG: Tem LINK: {'LINK' in colunas_base}")
             
-            if descricao_idx >= 0:
-                # Inserir colunas até descricao (inclusive)
-                colunas_ordenadas = colunas_base[:descricao_idx+1]
-                # Adicionar IMAGEM
-                colunas_ordenadas.append('IMAGEM')
-                # Adicionar restante das colunas
-                colunas_ordenadas.extend(colunas_base[descricao_idx+1:])
-            else:
-                colunas_ordenadas = colunas_base + ['IMAGEM']
+            # Ordem correta: CLIENTE, ARQUIVO_ORIGEM, DATA_IMPORTACAO, PICTURE, IMAGEM, LINK, DOC...
+            colunas_ordenadas = []
+            
+            # Primeiro: colunas fixas do sistema na ordem
+            colunas_fixas = ['cliente', 'arquivo_origem', 'data_importacao', 'PICTURE', 'IMAGEM', 'LINK']
+            for col in colunas_fixas:
+                if col in colunas_base:
+                    colunas_ordenadas.append(col)
+                elif col.lower() in [c.lower() for c in colunas_base]:
+                    # Encontrar a versão original (maiúscula/minúscula)
+                    for c in colunas_base:
+                        if c.lower() == col.lower():
+                            colunas_ordenadas.append(c)
+                            break
+            
+            # Depois: todas as outras colunas do Excel (exceto as fixas já adicionadas)
+            for c in colunas_base:
+                if c.lower() not in [x.lower() for x in colunas_fixas]:
+                    colunas_ordenadas.append(c)
             
             self.colunas = tuple([c.upper() for c in colunas_ordenadas])
+            print(f"DEBUG: Colunas ordenadas: {self.colunas[:10]}")  # Primeiras 10
         except Exception as e:
-            # Fallback para colunas padrão com IMAGEM e LINK ao lado de DESCRICAO
-            self.colunas = ('CLIENTE', 'ARQUIVO_ORIGEM', 'CODIGO', 'DESCRICAO', 'IMAGEM', 'LINK', 'PESO', 'VALOR', 'NCM')
+            # Fallback para colunas padrão na ordem correta
+            self.colunas = ('CLIENTE', 'ARQUIVO_ORIGEM', 'DATA_IMPORTACAO', 'PICTURE', 'IMAGEM', 'LINK', 'CODIGO', 'DESCRICAO', 'PESO', 'VALOR', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL_AMOUNT', 'MARCA', 'INNER_QTY', 'MASTER_QTY', 'TOTAL_CTNS', 'GROSS_WEIGHT', 'NET_WEIGHT_PC', 'GROSS_WEIGHT_PC', 'NET_WEIGHT_CTN', 'GROSS_WEIGHT_CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN14_INNER', 'DUN14_MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC_KG', 'LI', 'OBS', 'STATUS')
         
         self.tabela = ttk.Treeview(frame_tabela, columns=self.colunas, show='headings', height=15)
         
@@ -1309,6 +1323,8 @@ class SistemaPlanilhas:
                 self.tabela.column(col, width=250, minwidth=150, stretch=True)
             elif col in ('CODE', 'ITEM'):
                 self.tabela.column(col, width=150, minwidth=100, stretch=True)
+            elif col == 'PICTURE':
+                self.tabela.column(col, width=120, minwidth=80, stretch=False)
             elif col == 'IMAGEM':
                 self.tabela.column(col, width=80, minwidth=60, stretch=False)
             elif col == 'LINK':
@@ -1340,10 +1356,14 @@ class SistemaPlanilhas:
         
         # Carregar configuração salva ou usar padrão
         colunas_salvas = self.carregar_configuracao_colunas()
-        if colunas_salvas:
+        if colunas_salvas and len(colunas_salvas) >= len(colunas_disponiveis) * 0.8:
+            # Usar configuração salva apenas se tiver pelo menos 80% das colunas
             colunas_padrao = colunas_salvas
         else:
-            colunas_padrao = ['CLIENTE', 'CODIGO', 'DESCRICAO', 'IMAGEM', 'VALOR']  # Colunas padrão selecionadas
+            # Resetar para todas as colunas se configuração estiver incompleta
+            colunas_padrao = colunas_disponiveis
+            # Salvar a configuração completa
+            self.salvar_configuracao_colunas(colunas_padrao)
         
         for i, col in enumerate(colunas_disponiveis):
             var = tk.BooleanVar(value=col in colunas_padrao)

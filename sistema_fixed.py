@@ -7,6 +7,11 @@ import threading
 from datetime import datetime
 import csv
 from PIL import Image, ImageTk
+import sys
+
+# Configurar UTF-8 para suportar emojis no Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # ==============================
 # CONFIGURAÇÃO DO BANCO DE DADOS
@@ -372,8 +377,8 @@ def exportar_resultados(resultados, formato='excel'):
     if formato == 'excel':
         try:
             import pandas as pd
-            colunas_completas = ['Cliente', 'Arquivo', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
-            df = pd.DataFrame(resultados, columns=colunas_completas)
+            colunas_padrao = ['Cliente', 'Arquivo Origem', 'Código', 'Descrição', 'Peso', 'Valor', 'NCM', 'DOC', 'REV', 'CODE', 'QUANTITY', 'UM', 'CCY', 'TOTAL AMOUNT', 'MARCA', 'INNER QTY', 'MASTER QTY', 'TOTAL CTNS', 'GROSS WEIGHT', 'NET WEIGHT PC', 'GROSS WEIGHT PC', 'NET WEIGHT CTN', 'GROSS WEIGHT CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE', 'EAN13', 'DUN-14 INNER', 'DUN-14 MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM', 'PRC/KG', 'LI', 'OBS', 'STATUS']
+            df = pd.DataFrame(resultados, columns=colunas_padrao)
             nome_arquivo += '.xlsx'
             df.to_excel(nome_arquivo, index=False)
             return nome_arquivo
@@ -399,7 +404,7 @@ def exportar_resultados(resultados, formato='excel'):
 class SistemaPlanilhas:
     def __init__(self):
         self.janela = tk.Tk()
-        self.janela.title("📊 Sistema de Gerenciamento de Planilhas v1.0")
+        self.janela.title("📊 Sistema de Gerenciamento de Planilhas v1.0 [01]")
         self.janela.geometry("1200x700")
         self.janela.configure(bg='#f0f0f0')
         
@@ -946,7 +951,7 @@ class SistemaPlanilhas:
         
         texto_import = """
 📁 IMPORTAR PASTA: Importa todas as planilhas da pasta
-📄 SELECIONAR ARQUIVOS: Escolhe planilhas específicas
+📄 SELECIONAR ARQUIVOS-1: Escolhe planilhas específicas
 🔄 LIMPAR BANCO: Apaga TODOS os dados (cuidado!)
 📊 CAPACIDADE: Mostra estatísticas e limites
         """
