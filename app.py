@@ -1,5 +1,10 @@
 import sys
 import os
+
+# Configurar UTF-8 para suportar emojis no Windows (antes de outros imports)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 import sqlite3
 import zipfile
 import shutil
@@ -29,9 +34,9 @@ print("DATABASE_URL encontrado:", bool(os.environ.get('DATABASE_URL')))
 
 try:
     from planilhas_paths import runtime_dir as _runtime_dir, ensure_from_resource as _ensure_from_resource, is_frozen as _is_frozen
-    print("✅ planilhas_paths importado")
+    print("[OK] planilhas_paths importado")
 except Exception as e:
-    print("❌ Erro ao importar planilhas_paths:", e)
+    print("[ERRO] Erro ao importar planilhas_paths:", e)
     raise
 
 print("=== IMPORTS BÁSICOS OK ===")
@@ -101,7 +106,7 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 print(f"DATABASE_URL encontrado: {DATABASE_URL is not None}")
 
 if not DATABASE_URL:
-    print("⚠️ DATABASE_URL não configurado, usando SQLite fallback")
+    print("[AVISO] DATABASE_URL não configurado, usando SQLite fallback")
 
 from pagbank_client import client_from_env as _pagbank_from_env
 
@@ -1479,23 +1484,23 @@ def _garantir_superadmin():
         # Verificar se superadmin já existe
         test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         if test_user:
-            print("✅ Superadmin já existe e funciona!")
+            print("[OK] Superadmin já existe e funciona!")
             return
         
         # Criar superadmin
-        print("❌ Superadmin não encontrado, criando...")
+        print("[ERRO] Superadmin não encontrado, criando...")
         result = _ensure_superadmin("superadmin@planilhas.com", "GpA1XmI86lGB309W")
-        print(f"✅ Superadmin criado com ID: {result}")
+        print(f"[OK] Superadmin criado com ID: {result}")
         
         # Testar novamente
         test_user = _auth_user("superadmin@planilhas.com", "GpA1XmI86lGB309W")
         if test_user:
-            print("✅ Superadmin criado e autenticado com sucesso!")
+            print("[OK] Superadmin criado e autenticado com sucesso!")
         else:
-            print("❌ ERRO: Superadmin criado mas não autentica!")
+            print("[ERRO] ERRO: Superadmin criado mas não autentica!")
         
     except Exception as e:
-        print(f"❌ ERRO AO GARANTIR SUPERADMIN: {e}")
+        print(f"[ERRO] ERRO AO GARANTIR SUPERADMIN: {e}")
         import traceback
         traceback.print_exc()
 
@@ -1525,10 +1530,10 @@ def executar_app():
     
     # Mostrar URLs importantes no console
     print(f"\n{'='*60}")
-    print(f"🚀 SERVIDOR RODANDO!")
+    print(f">> SERVIDOR RODANDO!")
     print(f"{'='*60}")
-    print(f"📸 Upload de Imagens: http://127.0.0.1:{port}/upload-imagens")
-    print(f"🏠 Página Inicial: http://127.0.0.1:{port}/")
+    print(f"[IMG] Upload de Imagens: http://127.0.0.1:{port}/upload-imagens")
+    print(f"[HOME] Página Inicial: http://127.0.0.1:{port}/")
     print(f"{'='*60}\n")
 
     if auto_open_browser and host == '127.0.0.1':
@@ -1605,7 +1610,7 @@ def copiar_exe_para_desktop():
         # Copiar para o Desktop
         import shutil
         shutil.copy2(exe_atual, destino)
-        print(f"✅ EXE copiado para Desktop: {destino}")
+        print(f"[OK] EXE copiado para Desktop: {destino}")
         
     except Exception as e:
         print(f"DEBUG: Erro ao copiar para Desktop: {e}")
@@ -1663,8 +1668,8 @@ def upload_imagem():
         url_completa = f"{host_url}{url_imagem}"
         
         # Retornar URL imediatamente (SEM ESPERAR BANCO)
-        print(f"✅ Imagem salva: {caminho_arquivo}")
-        print(f"🔗 URL: {url_completa}")
+        print(f"[OK] Imagem salva: {caminho_arquivo}")
+        print(f"[LINK] URL: {url_completa}")
         
         # Salvar no banco em SEGUNDO PLANO (não bloqueia resposta)
         def salvar_no_banco_async():
@@ -1678,7 +1683,7 @@ def upload_imagem():
                     tamanho=os.path.getsize(caminho_arquivo)
                 )
             except Exception as e:
-                print(f"⚠️ Erro ao salvar no banco (não crítico): {e}")
+                print(f"[AVISO] Erro ao salvar no banco (não crítico): {e}")
         
         import threading
         threading.Thread(target=salvar_no_banco_async, daemon=True).start()
@@ -1690,7 +1695,7 @@ def upload_imagem():
         })
         
     except Exception as e:
-        print(f"❌ Erro no upload: {e}")
+        print(f"[ERRO] Erro no upload: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -1735,9 +1740,9 @@ if __name__ == '__main__':
             print("=== INICIALIZANDO BANCO NO RENDER ===")
             try:
                 _init_access_db()
-                print("✅ Banco inicializado com sucesso")
+                print("[OK] Banco inicializado com sucesso")
             except Exception as e:
-                print(f"❌ ERRO AO INICIAR BANCO: {e}")
+                print(f"[ERRO] ERRO AO INICIAR BANCO: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
@@ -1745,9 +1750,9 @@ if __name__ == '__main__':
             print("Garantindo superadmin...")
             try:
                 _garantir_superadmin()
-                print("✅ Superadmin garantido")
+                print("[OK] Superadmin garantido")
             except Exception as e:
-                print(f"❌ ERRO AO GARANTIR SUPERADMIN: {e}")
+                print(f"[ERRO] ERRO AO GARANTIR SUPERADMIN: {e}")
                 import traceback
                 traceback.print_exc()
                 raise
@@ -1756,11 +1761,11 @@ if __name__ == '__main__':
             sys.exit(executar_modulo_desktop(sys.argv[2]))
         
         # INICIAR O SERVIDOR FLASK
-        print("🚀 Iniciando servidor Flask...")
+        print(">> Iniciando servidor Flask...")
         executar_app()
             
     except Exception as e:
-        print(f"❌ ERRO FATAL AO INICIAR APLICACAO: {e}")
+        print(f"[ERRO] ERRO FATAL AO INICIAR APLICACAO: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
