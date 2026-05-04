@@ -16,7 +16,7 @@
             </p>
             
             <a href="/executar-sistema" class="btn btn-light btn-lg px-5" id="comecarBtn">
-                <i class="fas fa-play"></i> Começar Agora
+                <i class="fas fa-play"></i> Executar Sistema
             </a>
             <a href="/upload-imagens" class="btn btn-success btn-lg px-5 mt-2">
                 <i class="fas fa-camera"></i> Upload de Imagens
@@ -24,6 +24,9 @@
             <a href="/gerenciar-imagens" class="btn btn-info btn-lg px-5 mt-2">
                 <i class="fas fa-images"></i> Gerenciar Imagens
             </a>
+            <button type="button" class="btn btn-warning btn-lg px-5 mt-2" data-bs-toggle="modal" data-bs-target="#modalColunas">
+                <i class="fas fa-table"></i> Preencher Planilha
+            </button>
             <small class="d-block mt-3">
                 <i class="fas fa-shield-alt"></i> Garantia de 7 dias | Suporte dedicado
             </small>
@@ -318,6 +321,79 @@
     </div>
 </section>
 
+<!-- Modal com ordem das colunas -->
+<div class="modal fade" id="modalColunas" tabindex="-1" aria-labelledby="modalColunasLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title" id="modalColunasLabel">
+                    <i class="fas fa-table"></i> Ordem das Colunas para Planilha
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Preencha sua planilha Excel nesta ordem exata:</p>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-sm">
+                        <thead class="table-dark">
+                            <tr><th>#</th><th>Nome da Coluna</th><th>Descrição</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td><strong>CLIENTE</strong></td><td>Nome do cliente</td></tr>
+                            <tr><td>2</td><td><strong>ARQUIVO_ORIGEM</strong></td><td>Nome do arquivo origem</td></tr>
+                            <tr><td>3</td><td><strong>DATA_IMPORTACAO</strong></td><td>Data da importação</td></tr>
+                            <tr><td>4</td><td><strong>PICTURE</strong></td><td>URL da imagem</td></tr>
+                            <tr><td>5</td><td><strong>IMAGEM</strong></td><td>Nome do arquivo imagem</td></tr>
+                            <tr><td>6</td><td><strong>LINK</strong></td><td>Link externo</td></tr>
+                            <tr><td>7</td><td><strong>CODIGO</strong></td><td>Código do produto</td></tr>
+                            <tr><td>8</td><td><strong>DESCRICAO</strong></td><td>Descrição do produto</td></tr>
+                            <tr><td>9</td><td><strong>PESO</strong></td><td>Peso do produto</td></tr>
+                            <tr><td>10</td><td><strong>VALOR</strong></td><td>Valor/preço</td></tr>
+                            <tr><td>11</td><td><strong>NCM</strong></td><td>Código NCM</td></tr>
+                            <tr><td>12</td><td><strong>DOC</strong></td><td>Documento</td></tr>
+                            <tr><td>13</td><td><strong>REV</strong></td><td>Revisão</td></tr>
+                            <tr><td>14</td><td><strong>CODE</strong></td><td>Código alternativo</td></tr>
+                            <tr><td>15</td><td><strong>QUANTITY</strong></td><td>Quantidade</td></tr>
+                            <tr><td>16</td><td><strong>UM</strong></td><td>Unidade de medida</td></tr>
+                            <tr><td>17</td><td><strong>CCY</strong></td><td>Moeda</td></tr>
+                            <tr><td>18</td><td><strong>TOTAL_AMOUNT</strong></td><td>Valor total</td></tr>
+                            <tr><td>19</td><td><strong>MARCA</strong></td><td>Marca do produto</td></tr>
+                            <tr><td>20</td><td><strong>INNER_QTY</strong></td><td>Qtd. inner</td></tr>
+                            <tr><td>21</td><td><strong>MASTER_QTY</strong></td><td>Qtd. master</td></tr>
+                            <tr><td>22</td><td><strong>TOTAL_CTNS</strong></td><td>Total de caixas</td></tr>
+                            <tr><td>23</td><td><strong>GROSS_WEIGHT</strong></td><td>Peso bruto</td></tr>
+                            <tr><td>24</td><td><strong>NET_WEIGHT_PC</strong></td><td>Peso líq. por peça</td></tr>
+                            <tr><td>25</td><td><strong>GROSS_WEIGHT_PC</strong></td><td>Peso bruto por peça</td></tr>
+                            <tr><td>26</td><td><strong>NET_WEIGHT_CTN</strong></td><td>Peso líq. por caixa</td></tr>
+                            <tr><td>27</td><td><strong>GROSS_WEIGHT_CTN</strong></td><td>Peso bruto por caixa</td></tr>
+                            <tr><td>28</td><td><strong>FACTORY</strong></td><td>Fábrica</td></tr>
+                            <tr><td>29</td><td><strong>ADDRESS</strong></td><td>Endereço</td></tr>
+                            <tr><td>30</td><td><strong>TELEPHONE</strong></td><td>Telefone</td></tr>
+                            <tr><td>31</td><td><strong>EAN13</strong></td><td>Código EAN13</td></tr>
+                            <tr><td>32</td><td><strong>DUN14_INNER</strong></td><td>DUN14 Inner</td></tr>
+                            <tr><td>33</td><td><strong>DUN14_MASTER</strong></td><td>DUN14 Master</td></tr>
+                            <tr><td>34</td><td><strong>LENGTH</strong></td><td>Comprimento</td></tr>
+                            <tr><td>35</td><td><strong>WIDTH</strong></td><td>Largura</td></tr>
+                            <tr><td>36</td><td><strong>HEIGHT</strong></td><td>Altura</td></tr>
+                            <tr><td>37</td><td><strong>CBM</strong></td><td>Metros cúbicos</td></tr>
+                            <tr><td>38</td><td><strong>PRC_KG</strong></td><td>Preço por kg</td></tr>
+                            <tr><td>39</td><td><strong>LI</strong></td><td>LI</td></tr>
+                            <tr><td>40</td><td><strong>OBS</strong></td><td>Observações</td></tr>
+                            <tr><td>41</td><td><strong>STATUS</strong></td><td>Status</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-primary" onclick="copiarColunas()">
+                    <i class="fas fa-copy"></i> Copiar Lista
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 console.log('=== PÁGINA CARREGADA ===');
 console.log('Botão "Começar Agora" encontrado');
@@ -334,6 +410,25 @@ function checkDownloadLimit() {
     }
     
     return remainingDownloads;
+}
+
+// Função para copiar lista de colunas
+function copiarColunas() {
+    const colunas = [
+        'CLIENTE', 'ARQUIVO_ORIGEM', 'DATA_IMPORTACAO', 'PICTURE', 'IMAGEM', 'LINK',
+        'CODIGO', 'DESCRICAO', 'PESO', 'VALOR', 'NCM', 'DOC', 'REV', 'CODE',
+        'QUANTITY', 'UM', 'CCY', 'TOTAL_AMOUNT', 'MARCA', 'INNER_QTY', 'MASTER_QTY',
+        'TOTAL_CTNS', 'GROSS_WEIGHT', 'NET_WEIGHT_PC', 'GROSS_WEIGHT_PC',
+        'NET_WEIGHT_CTN', 'GROSS_WEIGHT_CTN', 'FACTORY', 'ADDRESS', 'TELEPHONE',
+        'EAN13', 'DUN14_INNER', 'DUN14_MASTER', 'LENGTH', 'WIDTH', 'HEIGHT', 'CBM',
+        'PRC_KG', 'LI', 'OBS', 'STATUS'
+    ];
+    const texto = colunas.join('\t');
+    navigator.clipboard.writeText(texto).then(function() {
+        alert('Lista de colunas copiada para a área de transferência!');
+    }, function(err) {
+        console.error('Erro ao copiar:', err);
+    });
 }
 
 // Direct download and execute system
